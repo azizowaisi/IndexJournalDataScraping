@@ -190,7 +190,7 @@ describe('S3FileProcessor', () => {
           1,
           1
         )
-      ).rejects.toThrow('Failed to create and upload XML file for record 1: S3 upload failed');
+      ).rejects.toThrow('Failed to create and upload XML file for record 1: Failed to upload to S3: S3 upload failed');
     });
   });
 
@@ -256,12 +256,12 @@ describe('S3FileProcessor', () => {
 
       expect(result).toMatchObject({
         s3Bucket: 'test-bucket',
-        s3Key: expect.stringMatching(/^oai-data\/test-journal-\d+\.xml$/),
+        s3Key: expect.stringMatching(/^2024\/01\/15\/test-journal\/test-journal_\d+\.xml$/),
         s3Url: expect.stringMatching(
-          /^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/oai-data\/test-journal-\d+\.xml$/
+          /^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/2024\/01\/15\/test-journal\/test-journal_\d+\.xml$/
         ),
-        s3Path: expect.stringMatching(/^s3:\/\/test-bucket\/oai-data\/test-journal-\d+\.xml$/),
-        filename: expect.stringMatching(/^test-journal-\d+\.xml$/),
+        s3Path: expect.stringMatching(/^s3:\/\/test-bucket\/2024\/01\/15\/test-journal\/test-journal_\d+\.xml$/),
+        filename: expect.stringMatching(/^test-journal_\d+\.xml$/),
         fileSize: expect.any(Number),
         contentType: 'application/xml',
       });

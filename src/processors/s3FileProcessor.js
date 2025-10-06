@@ -141,8 +141,11 @@ class S3FileProcessor {
         // Remove XML declaration from record data if present
         const cleanRecordXml = recordXml.replace(/^<\?xml[^>]*\?>\s*/g, '');
 
+        // Escape XML special characters in the record data
+        const escapedRecordXml = this.escapeXml(cleanRecordXml);
+
         // Indent the record data properly
-        const indentedRecordXml = cleanRecordXml.replace(/\n/g, '\n    ');
+        const indentedRecordXml = escapedRecordXml.replace(/\n/g, '\n    ');
         xmlContent += `    ${indentedRecordXml}\n`;
       } else {
         xmlContent += '    <!-- No record data available -->\n';
