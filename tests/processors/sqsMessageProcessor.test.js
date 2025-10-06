@@ -100,7 +100,6 @@ describe('SqsMessageProcessor', () => {
       );
     });
 
-
     it('should use default contentType when not provided', async () => {
       const messageData = {
         journalKey: 'test-journal',
@@ -273,7 +272,6 @@ describe('SqsMessageProcessor', () => {
         })
       );
     });
-
 
     it('should use default contentType when not provided', async () => {
       const messageData = {

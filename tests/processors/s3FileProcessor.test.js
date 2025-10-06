@@ -260,7 +260,9 @@ describe('S3FileProcessor', () => {
 
       expect(result).toMatchObject({
         s3Bucket: 'test-bucket',
-        s3Key: expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}\/test-journal\/test-journal_\d{8}_\d+\.xml$/),
+        s3Key: expect.stringMatching(
+          /^\d{4}\/\d{2}\/\d{2}\/test-journal\/test-journal_\d{8}_\d+\.xml$/
+        ),
         s3Url: expect.stringMatching(
           /^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/\d{4}\/\d{2}\/\d{2}\/test-journal\/test-journal_\d{8}_\d+\.xml$/
         ),

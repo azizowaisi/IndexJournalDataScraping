@@ -3,6 +3,7 @@
   "version": "1.0.2",
   "description": "Serverless Lambda function for scraping OAI data from journal websites",
   "main": "src/handler.js",
+  "type": "module",
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",

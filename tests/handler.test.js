@@ -488,7 +488,6 @@ describe('Lambda Handler', () => {
       });
     });
 
-
     it('should return batch item failures for processing errors', async () => {
       // Mock processor initialization failure
       OaiDataProcessor.mockImplementation(() => {
