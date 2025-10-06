@@ -123,7 +123,7 @@ describe('SqsMessageProcessor', () => {
       await processor.sendRecordMessage(messageData);
 
       const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
-      expect(messageBody.companyKey).toBeUndefined();
+      expect(messageBody.companyKey).toBeNull();
     });
 
     it('should use default contentType when not provided', async () => {
@@ -290,7 +290,6 @@ describe('SqsMessageProcessor', () => {
       expect(messageBody).toEqual(
         expect.objectContaining({
           journalKey: 'test-journal',
-          oaiUrl: 'https://example.com/oai',
           s3Url: 'https://test-bucket.s3.amazonaws.com/test-file.xml',
           s3Key: 'test-file.xml',
           messageType: 'file-processing-request',
@@ -315,7 +314,7 @@ describe('SqsMessageProcessor', () => {
       await processor.sendMessage(messageData);
 
       const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
-      expect(messageBody.companyKey).toBeUndefined();
+      expect(messageBody.companyKey).toBeNull();
     });
 
     it('should use default contentType when not provided', async () => {

@@ -67,7 +67,7 @@ describe('S3FileProcessor', () => {
       expect(result).toContain(`<recordNumber>${recordNumber}</recordNumber>`);
       expect(result).toContain(`<pageNumber>${pageNumber}</pageNumber>`);
       expect(result).toContain('<record>');
-      expect(result).toContain(recordXml);
+      expect(result).toContain('&lt;record&gt;&lt;header&gt;&lt;identifier&gt;test-id&lt;/identifier&gt;&lt;/header&gt;&lt;/record&gt;');
       expect(result).toContain('</record>');
       expect(result).toContain('</oai-scraping-result>');
     });
@@ -120,7 +120,7 @@ describe('S3FileProcessor', () => {
       );
 
       expect(result).not.toContain('<?xml version="1.0"?><record>');
-      expect(result).toContain('<test>data</test>');
+      expect(result).toContain('&lt;test&gt;data&lt;/test&gt;');
     });
   });
 
