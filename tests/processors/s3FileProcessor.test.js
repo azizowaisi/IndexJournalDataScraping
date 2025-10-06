@@ -67,7 +67,9 @@ describe('S3FileProcessor', () => {
       expect(result).toContain(`<recordNumber>${recordNumber}</recordNumber>`);
       expect(result).toContain(`<pageNumber>${pageNumber}</pageNumber>`);
       expect(result).toContain('<record>');
-      expect(result).toContain('&lt;record&gt;&lt;header&gt;&lt;identifier&gt;test-id&lt;/identifier&gt;&lt;/header&gt;&lt;/record&gt;');
+      expect(result).toContain(
+        '&lt;record&gt;&lt;header&gt;&lt;identifier&gt;test-id&lt;/identifier&gt;&lt;/header&gt;&lt;/record&gt;'
+      );
       expect(result).toContain('</record>');
       expect(result).toContain('</oai-scraping-result>');
     });
@@ -190,7 +192,9 @@ describe('S3FileProcessor', () => {
           1,
           1
         )
-      ).rejects.toThrow('Failed to create and upload XML file for record 1: Failed to upload to S3: S3 upload failed');
+      ).rejects.toThrow(
+        'Failed to create and upload XML file for record 1: Failed to upload to S3: S3 upload failed'
+      );
     });
   });
 
@@ -260,7 +264,9 @@ describe('S3FileProcessor', () => {
         s3Url: expect.stringMatching(
           /^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/\d{4}\/\d{2}\/\d{2}\/test-journal\/test-journal_\d+\.xml$/
         ),
-        s3Path: expect.stringMatching(/^s3:\/\/test-bucket\/\d{4}\/\d{2}\/\d{2}\/test-journal\/test-journal_\d+\.xml$/),
+        s3Path: expect.stringMatching(
+          /^s3:\/\/test-bucket\/\d{4}\/\d{2}\/\d{2}\/test-journal\/test-journal_\d+\.xml$/
+        ),
         filename: expect.stringMatching(/^test-journal_\d+\.xml$/),
         fileSize: expect.any(Number),
         contentType: 'application/xml',
