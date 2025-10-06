@@ -58,7 +58,70 @@ jobs:
           SQS_INTEGRATION_QUEUE_ARN: ${{ secrets.SQS_INTEGRATION_QUEUE_ARN }}
         run: |
           echo "$SERVERLESS_ACCESS_KEY" | serverless login --key
-          sls deploy --stage prod --region $AWS_REGION
+          
+          # Function to check CloudFormation stack status
+          check_stack_status() {
+            local stack_name="index-journals-data-scraping-prod"
+            local status=$(aws cloudformation describe-stacks --stack-name $stack_name --region $AWS_REGION --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Current stack status: $status"
+            echo $status
+          }
+          
+          # Wait for stack to be in a deployable state
+          echo "Checking CloudFormation stack status..."
+          max_attempts=30
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            status=$(check_stack_status)
+            echo "Attempt $attempt/$max_attempts - Stack status: $status"
+            
+            case $status in
+              "CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE"|"STACK_NOT_FOUND")
+                echo "Stack is in a deployable state: $status"
+                break
+                ;;
+              "UPDATE_IN_PROGRESS"|"CREATE_IN_PROGRESS")
+                echo "Stack is still updating, waiting 30 seconds..."
+                sleep 30
+                ;;
+              *)
+                echo "Stack is in state: $status - proceeding with deployment"
+                break
+                ;;
+            esac
+            
+            attempt=$((attempt + 1))
+          done
+          
+          if [ $attempt -gt $max_attempts ]; then
+            echo "Timeout waiting for stack to be ready. Proceeding with deployment..."
+          fi
+          
+          # Deploy with retry mechanism
+          max_deploy_attempts=3
+          deploy_attempt=1
+          
+          while [ $deploy_attempt -le $max_deploy_attempts ]; do
+            echo "Deployment attempt $deploy_attempt/$max_deploy_attempts"
+            
+            if sls deploy --stage prod --region $AWS_REGION; then
+              echo "Deployment successful!"
+              break
+            else
+              echo "Deployment failed on attempt $deploy_attempt"
+              
+              if [ $deploy_attempt -lt $max_deploy_attempts ]; then
+                echo "Waiting 60 seconds before retry..."
+                sleep 60
+              else
+                echo "All deployment attempts failed"
+                exit 1
+              fi
+            fi
+            
+            deploy_attempt=$((deploy_attempt + 1))
+          done
 
   sonarcloud:
     name: SonarCloud Analysis
