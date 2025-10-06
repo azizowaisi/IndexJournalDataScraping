@@ -49,7 +49,6 @@ describe('SqsMessageProcessor', () => {
       const messageData = {
         journalKey: 'test-journal',
         oaiUrl: 'https://example.com/oai',
-        companyKey: 'test-company',
         recordNumber: 5,
         pageNumber: 2,
         s3Bucket: 'test-bucket',
@@ -101,29 +100,6 @@ describe('SqsMessageProcessor', () => {
       );
     });
 
-    it('should send record message without companyKey', async () => {
-      const messageData = {
-        journalKey: 'test-journal',
-        oaiUrl: 'https://example.com/oai',
-        recordNumber: 1,
-        pageNumber: 1,
-        s3Bucket: 'test-bucket',
-        s3Key: 'test-key.xml',
-        s3Url: 'https://test-bucket.s3.amazonaws.com/test-key.xml',
-        s3Path: 'test-key.xml',
-        filename: 'test-key.xml',
-        fileSize: 512,
-        contentType: 'application/xml',
-        success: true,
-        errorCode: null,
-        errorMessage: null,
-      };
-
-      await processor.sendRecordMessage(messageData);
-
-      const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
-      expect(messageBody).not.toHaveProperty('companyKey');
-    });
 
     it('should use default contentType when not provided', async () => {
       const messageData = {
@@ -289,7 +265,6 @@ describe('SqsMessageProcessor', () => {
       expect(messageBody).toEqual(
         expect.objectContaining({
           journalKey: 'test-journal',
-          companyKey: null,
           s3Url: 'https://test-bucket.s3.amazonaws.com/test-file.xml',
           s3Key: 'test-file.xml',
           messageType: 'file-processing-request',
@@ -299,22 +274,6 @@ describe('SqsMessageProcessor', () => {
       );
     });
 
-    it('should handle null companyKey in legacy message', async () => {
-      const messageData = {
-        journalKey: 'test-journal',
-        oaiUrl: 'https://example.com/oai',
-        companyKey: null,
-        s3Url: 'https://test-bucket.s3.amazonaws.com/test-file.xml',
-        s3Key: 'test-file.xml',
-        messageType: 'journal-data',
-        source: 'scraping-service',
-      };
-
-      await processor.sendMessage(messageData);
-
-      const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
-      expect(messageBody.companyKey).toBeNull();
-    });
 
     it('should use default contentType when not provided', async () => {
       const messageData = {

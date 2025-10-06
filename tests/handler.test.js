@@ -160,9 +160,14 @@ describe('Lambda Handler', () => {
         };
       });
 
-      mockS3Processor.createAndUploadXml.mockResolvedValue(
-        'https://test-bucket.s3.amazonaws.com/test.xml'
-      );
+      mockS3Processor.createAndUploadXml.mockResolvedValue({
+        s3Url: 'https://test-bucket.s3.amazonaws.com/test.xml',
+        s3Key: 'test.xml',
+        s3Path: 's3://test-bucket/test.xml',
+        filename: 'test.xml',
+        fileSize: 100,
+        contentType: 'application/xml',
+      });
       mockSqsProcessor.sendMessage.mockResolvedValue('message-id');
 
       const event = {
@@ -189,7 +194,7 @@ describe('Lambda Handler', () => {
       expect(result).toEqual({ statusCode: 200, body: 'SUCCESS' });
       expect(mockOaiProcessor.processIdentify).toHaveBeenCalledTimes(2);
       expect(mockOaiProcessor.processListRecords).toHaveBeenCalledTimes(2);
-      expect(mockSqsProcessor.sendMessage).toHaveBeenCalledTimes(6); // 2 phases × 2 messages + 2 ListRecords pages
+      expect(mockSqsProcessor.sendMessage).toHaveBeenCalledTimes(4); // 2 records × 2 messages each (1 Identify + 1 ListRecords page)
     });
 
     it('should handle empty records array', async () => {
@@ -483,50 +488,6 @@ describe('Lambda Handler', () => {
       });
     });
 
-    it('should include company_key in messages when provided', async () => {
-      // Mock successful responses
-      mockOaiProcessor.processIdentify.mockResolvedValue({
-        data: '<OAI-PMH><Identify>test</Identify></OAI-PMH>',
-        success: true,
-        errorCode: null,
-        errorMessage: null,
-      });
-
-      mockOaiProcessor.processListRecords.mockResolvedValue({
-        pageCount: 1,
-        totalRecordsProcessed: 0,
-        success: true,
-        errorCode: null,
-        errorMessage: null,
-      });
-
-      mockS3Processor.createAndUploadXml.mockResolvedValue(
-        'https://test-bucket.s3.amazonaws.com/test.xml'
-      );
-      mockSqsProcessor.sendMessage.mockResolvedValue('message-id');
-
-      const event = {
-        Records: [
-          {
-            messageId: 'test-message-id',
-            body: JSON.stringify({
-              url: 'https://example.com/oai',
-              journal_key: 'test-journal-123',
-              company_key: 'test-company-456',
-            }),
-          },
-        ],
-      };
-
-      await handler(event);
-
-      // Verify company_key is included in all SQS messages
-      expect(mockSqsProcessor.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          companyKey: 'test-company-456',
-        })
-      );
-    });
 
     it('should return batch item failures for processing errors', async () => {
       // Mock processor initialization failure

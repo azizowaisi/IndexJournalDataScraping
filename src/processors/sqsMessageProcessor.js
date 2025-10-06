@@ -25,7 +25,6 @@ class SqsMessageProcessor {
       // Create message data with S3 path information
       const message = {
         journalKey: messageData.journalKey,
-        companyKey: messageData.companyKey || null,
 
         // S3 information
         s3Bucket: messageData.s3Bucket,

@@ -345,51 +345,25 @@ describe('OaiDataProcessor', () => {
 
   describe('resumption token extraction', () => {
     it('should extract resumption token from XML', async () => {
-      const xmlResponse = `
-                <OAI-PMH>
-                    <ListRecords>
-                        <resumptionToken>test-token-123</resumptionToken>
-                    </ListRecords>
-                </OAI-PMH>
-            `;
+      const parsedData = {
+        resumptionToken: { _: 'test-token-123' },
+      };
 
-      parseStringPromise.mockResolvedValue({
-        'OAI-PMH': {
-          ListRecords: {
-            resumptionToken: { _: 'test-token-123' },
-          },
-        },
-      });
-
-      const result = await processor.extractResumptionToken(xmlResponse);
+      const result = processor.extractResumptionTokenFromParsed(parsedData);
       expect(result).toBe('test-token-123');
     });
 
     it('should return null when no resumption token', async () => {
-      const xmlResponse = `
-                <OAI-PMH>
-                    <ListRecords>
-                        <record>test record</record>
-                    </ListRecords>
-                </OAI-PMH>
-            `;
+      const parsedData = {
+        record: 'test record',
+      };
 
-      parseStringPromise.mockResolvedValue({
-        'OAI-PMH': {
-          ListRecords: {
-            record: 'test record',
-          },
-        },
-      });
-
-      const result = await processor.extractResumptionToken(xmlResponse);
+      const result = processor.extractResumptionTokenFromParsed(parsedData);
       expect(result).toBeNull();
     });
 
     it('should handle XML parsing errors', async () => {
-      parseStringPromise.mockRejectedValue(new Error('Parse error'));
-
-      const result = await processor.extractResumptionToken('invalid xml');
+      const result = processor.extractResumptionTokenFromParsed('invalid data');
       expect(result).toBeNull();
     });
   });

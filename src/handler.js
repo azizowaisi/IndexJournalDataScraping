@@ -20,7 +20,7 @@ exports.handler = async event => {
       const messageData = JSON.parse(record.body);
       console.log('Processing SQS message body:', JSON.stringify(messageData, null, 2));
 
-      const { url, journal_key: journalKey, company_key: companyKey } = messageData;
+      const { url, journal_key: journalKey } = messageData;
 
       // Validate required fields
       if (!url || !journalKey) {
@@ -60,7 +60,6 @@ exports.handler = async event => {
           await sqsProcessor.sendMessage({
             journalKey,
             oaiUrl: url,
-            companyKey: companyKey || null,
             s3Url: identifyS3Result.s3Url,
             s3Key: identifyS3Result.s3Key,
             s3Path: identifyS3Result.s3Path,
@@ -86,7 +85,6 @@ exports.handler = async event => {
           await sqsProcessor.sendMessage({
             journalKey,
             oaiUrl: url,
-            companyKey: companyKey || null,
             s3Url: null,
             s3Key: null,
             messageType: 'Identify',
@@ -104,7 +102,6 @@ exports.handler = async event => {
         await sqsProcessor.sendMessage({
           journalKey,
           oaiUrl: url,
-          companyKey: companyKey || null,
           s3Url: null,
           s3Key: null,
           messageType: 'Identify',
@@ -140,7 +137,6 @@ exports.handler = async event => {
               await sqsProcessor.sendMessage({
                 journalKey,
                 oaiUrl: url,
-                companyKey: companyKey || null,
                 s3Url: pageS3Result.s3Url,
                 s3Key: pageS3Result.s3Key,
                 s3Path: pageS3Result.s3Path,
@@ -176,7 +172,6 @@ exports.handler = async event => {
               await sqsProcessor.sendMessage({
                 journalKey,
                 oaiUrl: url,
-                companyKey: companyKey || null,
                 s3Url: null,
                 s3Key: null,
                 messageType: 'ListRecords',
@@ -203,7 +198,6 @@ exports.handler = async event => {
           await sqsProcessor.sendMessage({
             journalKey,
             oaiUrl: url,
-            companyKey: companyKey || null,
             s3Url: null,
             s3Key: null,
             messageType: 'ListRecords',
@@ -225,7 +219,6 @@ exports.handler = async event => {
         await sqsProcessor.sendMessage({
           journalKey,
           oaiUrl: url,
-          companyKey: companyKey || null,
           s3Url: null,
           s3Key: null,
           messageType: 'ListRecords',
