@@ -1,0 +1,87 @@
+# Test files and directories
+tests/
+__tests__/
+**/*.test.js
+**/*.spec.js
+jest.config.js
+jest.setup.js
+__mocks__/
+coverage/
+.nyc_output/
+
+# Development configuration
+.env*
+config/
+scripts/
+.github/
+.git/
+.gitignore
+README.md
+CHANGELOG.md
+LICENSE
+.editorconfig
+.eslintrc*
+.prettierrc*
+.nvmrc
+
+# Build artifacts
+dist/
+build/
+.serverless/
+
+# Development tools
+.vscode/
+.idea/
+*.log
+*.tmp
+
+# Package manager files (keep package.json and package-lock.json)
+node_modules/.cache/
+node_modules/.bin/
+node_modules/**/test/
+node_modules/**/tests/
+node_modules/**/spec/
+node_modules/**/__tests__/
+node_modules/**/*.test.js
+node_modules/**/*.spec.js
+node_modules/**/README.md
+node_modules/**/CHANGELOG.md
+node_modules/**/LICENSE
+node_modules/**/.gitignore
+node_modules/**/.npmignore
+
+# AWS SDK specific exclusions (it's a large package with many unnecessary files)
+node_modules/aws-sdk/scripts/
+node_modules/aws-sdk/test/
+node_modules/aws-sdk/tests/
+node_modules/aws-sdk/docs/
+node_modules/aws-sdk/dist-tools/
+node_modules/aws-sdk/clients/
+node_modules/aws-sdk/lib/
+node_modules/aws-sdk/vendor/
+node_modules/aws-sdk/apis/
+node_modules/aws-sdk/models/
+node_modules/aws-sdk/resources/
+node_modules/aws-sdk/**/*.ts
+node_modules/aws-sdk/**/*.json
+node_modules/aws-sdk/**/*.md
+
+# Other common unnecessary files in node_modules
+node_modules/**/docs/
+node_modules/**/examples/
+node_modules/**/samples/
+node_modules/**/demo/
+node_modules/**/benchmark/
+node_modules/**/benchmarks/
+node_modules/**/perf/
+node_modules/**/*.map
+node_modules/**/*.ts
+node_modules/**/*.d.ts
+node_modules/**/typings/
+node_modules/**/types/
+
+# Documentation and examples
+docs/
+examples/
+*.md
+!package.json

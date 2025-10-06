@@ -1,0 +1,2 @@
+# This file ensures the serverless directory is tracked by git
+# The actual build artifacts (.serverless/) are excluded via .gitignore

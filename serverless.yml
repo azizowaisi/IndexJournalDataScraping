@@ -1,0 +1,140 @@
+service: index-journals-data-scraping
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: ${env:AWS_REGION}
+  stage: ${opt:stage, 'dev'}
+  timeout: 900
+  memorySize: 256
+  deploymentBucket:
+    name: ${env:S3_DEPLOYMENT_BUCKET}
+    serverSideEncryption: AES256
+  
+  environment:
+    # AWS Configuration
+    S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
+    SQS_SCRAPING_QUEUE_URL: ${env:SQS_SCRAPING_QUEUE_URL}
+    SQS_INTEGRATION_QUEUE_URL: ${env:SQS_INTEGRATION_QUEUE_URL}
+    
+  iam:
+    role:
+      statements:
+        # SQS permissions
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+          Resource:
+            - ${env:SQS_SCRAPING_QUEUE_ARN}
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:GetQueueAttributes
+          Resource:
+            - ${env:SQS_INTEGRATION_QUEUE_ARN}
+        
+        # S3 permissions
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:PutObjectAcl
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - arn:aws:s3:::${env:S3_BUCKET_NAME}/*
+        
+        # CloudWatch Logs permissions
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+          Resource: '*'
+  
+  tags:
+    Service: ${self:service}
+    Environment: ${self:provider.stage}
+    ManagedBy: serverless
+
+# Packaging configuration for production deployment
+package:
+  individually: true
+  patterns:
+    # Include only production source code
+    - 'src/**'
+    # Include package.json and package-lock.json for dependencies
+    - 'package.json'
+    - 'package-lock.json'
+    # Include node_modules but exclude dev dependencies
+    - 'node_modules/**'
+    - '!node_modules/**/test/**'
+    - '!node_modules/**/tests/**'
+    - '!node_modules/**/spec/**'
+    - '!node_modules/**/__tests__/**'
+    - '!node_modules/**/*.test.js'
+    - '!node_modules/**/*.spec.js'
+    # Exclude development and test files
+    - '!tests/**'
+    - '!__tests__/**'
+    - '!**/*.test.js'
+    - '!**/*.spec.js'
+    - '!jest.config.js'
+    - '!jest.setup.js'
+    - '!__mocks__/**'
+    - '!coverage/**'
+    - '!.nyc_output/**'
+    # Exclude development configuration
+    - '!.env*'
+    - '!config/**'
+    - '!scripts/**'
+    - '!.github/**'
+    - '!.git/**'
+    - '!.gitignore'
+    - '!README.md'
+    - '!CHANGELOG.md'
+    - '!LICENSE'
+    - '!.editorconfig'
+    - '!.eslintrc*'
+    - '!.prettierrc*'
+    - '!.nvmrc'
+    # Exclude build artifacts
+    - '!dist/**'
+    - '!build/**'
+    - '!.serverless/**'
+    # Exclude development tools
+    - '!.vscode/**'
+    - '!.idea/**'
+    - '!*.log'
+    - '!*.tmp'
+
+functions:
+  # Journal Data Scraping Lambda
+  journalDataScraping:
+    handler: src/handler.handler
+    name: ${self:service}-${self:provider.stage}
+    description: "Journal Data Scraping: Receives SQS messages, scrapes OAI data, saves to S3"
+    timeout: 900
+    memorySize: 256
+    events:
+      - sqs:
+          arn: ${env:SQS_SCRAPING_QUEUE_ARN}
+          batchSize: 1
+          functionResponseType: ReportBatchItemFailures
+    tags:
+      Service: ${self:service}
+      Function: scraping
+      Environment: ${self:provider.stage}
+
+# Custom resources
+resources:
+  Outputs:
+    JournalDataScrapingArn:
+      Description: "Journal Data Scraping Lambda Function ARN"
+      Value: !GetAtt JournalDataScrapingLambdaFunction.Arn
+      Export:
+        Name: ${self:service}-${self:provider.stage}-scraping-arn

@@ -1,0 +1,61 @@
+{
+  "name": "index-journals-data-scraping",
+  "version": "1.0.2",
+  "description": "Serverless Lambda function for scraping OAI data from journal websites",
+  "main": "src/handler.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "clean": "./scripts/clean",
+    "clean:all": "./scripts/clean --all",
+    "deploy:local": "npm run test:ci && serverless deploy --stage local",
+    "deploy:prod": "npm run test:ci && serverless deploy --stage prod",
+    "logs": "serverless logs -f journalDataScraping --tail",
+    "remove": "serverless remove"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.901.0",
+    "@aws-sdk/client-sqs": "^3.901.0",
+    "axios": "^1.7.9",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "serverless": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!tests/**/*.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ],
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ]
+  },
+  "keywords": [
+    "serverless",
+    "lambda",
+    "oai",
+    "scraping",
+    "aws",
+    "s3",
+    "sqs"
+  ],
+  "author": "Teckiz",
+  "license": "MIT"
+}

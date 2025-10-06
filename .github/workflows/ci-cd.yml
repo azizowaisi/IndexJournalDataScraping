@@ -1,0 +1,55 @@
+name: CI/CD - Journal Index Data Scraping
+
+on:
+  push:
+    branches: [master]   # Deploy only when master branch is updated
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up JDK 21 (Latest LTS for AWS Lambda)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # 3. Cache Maven dependencies
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      # 4. Build the JAR with Maven
+      - name: Build with Maven
+        run: mvn -B clean package
+
+      # 5. Install Serverless Framework v4
+      - name: Install Serverless Framework v4
+        run: npm install -g serverless@4
+
+      # 6. Deploy using Serverless Framework with authentication
+      - name: Deploy to AWS
+        env:
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          # S3 Configuration
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          # SQS Configuration
+          SQS_SCRAPING_QUEUE_URL: ${{ secrets.SQS_SCRAPING_QUEUE_URL }}
+          SQS_SCRAPING_QUEUE_ARN: ${{ secrets.SQS_SCRAPING_QUEUE_ARN }}
+          SQS_INTEGRATION_QUEUE_URL: ${{ secrets.SQS_INTEGRATION_QUEUE_URL }}
+          SQS_INTEGRATION_QUEUE_ARN: ${{ secrets.SQS_INTEGRATION_QUEUE_ARN }}
+        run: |
+          echo "$SERVERLESS_ACCESS_KEY" | serverless login --key
+          sls deploy --stage prod --region $AWS_REGION
