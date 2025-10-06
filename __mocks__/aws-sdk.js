@@ -14,7 +14,7 @@ const mockSQSClient = {
 };
 
 // Mock AWS SDK v3 clients
-module.exports = {
+export default {
   '@aws-sdk/client-s3': {
     S3Client: jest.fn(() => mockS3Client),
     PutObjectCommand: jest.fn()

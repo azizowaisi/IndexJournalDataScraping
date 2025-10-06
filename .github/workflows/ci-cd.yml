@@ -2,12 +2,16 @@ name: CI/CD - Journal Index Data Scraping
 
 on:
   push:
-    branches: [master]   # Deploy only when master branch is updated
+    branches: [master]   # Deploy when master branch is updated (including PR merges)
+  pull_request:
+    types: [closed]
+    branches: [master]   # Also trigger when PR is closed (merged or closed)
 
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
-    # This job runs independently for deployment
+    # Only run if this is a push to master OR a merged PR to master
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
 
     steps:
       # 1. Checkout repo

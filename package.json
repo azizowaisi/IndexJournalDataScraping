@@ -3,7 +3,6 @@
   "version": "1.0.2",
   "description": "Serverless Lambda function for scraping OAI data from journal websites",
   "main": "src/handler.js",
-  "type": "module",
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
@@ -37,25 +36,6 @@
   },
   "engines": {
     "node": ">=22.0.0"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "collectCoverageFrom": [
-      "src/**/*.js",
-      "!tests/**/*.js"
-    ],
-    "coverageDirectory": "coverage",
-    "coverageReporters": [
-      "text",
-      "lcov",
-      "html"
-    ],
-    "testMatch": [
-      "<rootDir>/tests/**/*.test.js"
-    ],
-    "setupFilesAfterEnv": [
-      "<rootDir>/jest.setup.js"
-    ]
   },
   "keywords": [
     "serverless",
