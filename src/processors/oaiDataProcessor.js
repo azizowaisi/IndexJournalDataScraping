@@ -81,18 +81,20 @@ class OaiDataProcessor {
    */
   async makeListRecordsRequest(requestUrl) {
     console.log('Making ListRecords request to:', requestUrl);
-    
+
     const response = await axios.get(requestUrl, this.axiosConfig);
-    
+
     if (response.status !== 200) {
       throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
     }
-    
+
     if (!response.data) {
       throw new Error('Empty response received from OAI endpoint');
     }
-    
-    console.log(`Successfully received ListRecords response with ${response.data.length} characters`);
+
+    console.log(
+      `Successfully received ListRecords response with ${response.data.length} characters`
+    );
     return response;
   }
 
@@ -111,7 +113,7 @@ class OaiDataProcessor {
     }
 
     const listRecords = result['OAI-PMH'].ListRecords;
-    
+
     // Count records in this page
     let recordsInPage = 0;
     if (listRecords.record) {
@@ -120,7 +122,12 @@ class OaiDataProcessor {
     }
 
     // Call the callback function for this page
-    await pageCallback(response.data, pageCount, recordsInPage, totalRecordsProcessed + recordsInPage);
+    await pageCallback(
+      response.data,
+      pageCount,
+      recordsInPage,
+      totalRecordsProcessed + recordsInPage
+    );
 
     console.log(`Processed page ${pageCount} with ${recordsInPage} records.`);
 
@@ -132,7 +139,7 @@ class OaiDataProcessor {
   /**
    * Helper method to handle pagination logic
    */
-  async handlePagination(resumptionToken, pageCount) {
+  async handlePagination(resumptionToken, _pageCount) {
     if (resumptionToken) {
       console.log(`Found resumption token: ${resumptionToken}, continuing pagination...`);
       await this.delay(1000); // 1 second delay between requests
@@ -166,13 +173,18 @@ class OaiDataProcessor {
         pageCount++;
         console.log(`Fetching ListRecords page ${pageCount}`);
 
-        const requestUrl = resumptionToken 
+        const requestUrl = resumptionToken
           ? this.buildResumptionTokenUrl(oaiUrl, resumptionToken)
           : this.buildListRecordsUrl(oaiUrl);
 
         const response = await this.makeListRecordsRequest(requestUrl);
-        const { recordsInPage, newResumptionToken } = await this.processListRecordsPage(response, pageCount, pageCallback, totalRecordsProcessed);
-        
+        const { recordsInPage, newResumptionToken } = await this.processListRecordsPage(
+          response,
+          pageCount,
+          pageCallback,
+          totalRecordsProcessed
+        );
+
         totalRecordsProcessed += recordsInPage;
         resumptionToken = await this.handlePagination(newResumptionToken, pageCount);
 
@@ -319,10 +331,10 @@ class OaiDataProcessor {
    */
   getNetworkErrorCode(error) {
     const networkErrorMap = {
-      'ECONNREFUSED': 'CONNECTION_REFUSED',
-      'ENOTFOUND': 'DNS_RESOLUTION_FAILED',
-      'ETIMEDOUT': 'TIMEOUT_ERROR',
-      'ECONNRESET': 'CONNECTION_RESET',
+      ECONNREFUSED: 'CONNECTION_REFUSED',
+      ENOTFOUND: 'DNS_RESOLUTION_FAILED',
+      ETIMEDOUT: 'TIMEOUT_ERROR',
+      ECONNRESET: 'CONNECTION_RESET',
     };
     return networkErrorMap[error.code] || null;
   }
@@ -346,8 +358,8 @@ class OaiDataProcessor {
     if (error.name !== 'AxiosError') return null;
 
     const axiosErrorMap = {
-      'ECONNABORTED': 'REQUEST_TIMEOUT',
-      'ERR_NETWORK': 'NETWORK_ERROR',
+      ECONNABORTED: 'REQUEST_TIMEOUT',
+      ERR_NETWORK: 'NETWORK_ERROR',
     };
     return axiosErrorMap[error.code] || 'AXIOS_ERROR';
   }
@@ -357,9 +369,9 @@ class OaiDataProcessor {
    */
   getGenericErrorCode(error) {
     const genericErrorMap = {
-      'TypeError': 'TYPE_ERROR',
-      'SyntaxError': 'SYNTAX_ERROR',
-      'ReferenceError': 'REFERENCE_ERROR',
+      TypeError: 'TYPE_ERROR',
+      SyntaxError: 'SYNTAX_ERROR',
+      ReferenceError: 'REFERENCE_ERROR',
     };
     return genericErrorMap[error.name] || null;
   }
@@ -370,11 +382,13 @@ class OaiDataProcessor {
   getErrorCode(error) {
     if (!error) return 'UNKNOWN_ERROR';
 
-    return this.getNetworkErrorCode(error) ||
-           this.getHttpErrorCode(error) ||
-           this.getAxiosErrorCode(error) ||
-           this.getGenericErrorCode(error) ||
-           'UNKNOWN_ERROR';
+    return (
+      this.getNetworkErrorCode(error) ||
+      this.getHttpErrorCode(error) ||
+      this.getAxiosErrorCode(error) ||
+      this.getGenericErrorCode(error) ||
+      'UNKNOWN_ERROR'
+    );
   }
 
   /**

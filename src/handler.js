@@ -19,10 +19,10 @@ const createErrorMessage = (journalKey, oaiUrl, messageType, errorCode, errorMes
 // Helper function to process Identify phase
 const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url, journalKey) => {
   console.log(`Phase 1: Processing Identify request for journal: ${journalKey}`);
-  
+
   try {
     const identifyResult = await oaiProcessor.processIdentify(url, journalKey);
-    
+
     if (identifyResult.success) {
       console.log('Saving Identify data to S3');
       const identifyS3Result = await s3Processor.createAndUploadXml(
@@ -30,7 +30,7 @@ const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url
         `${journalKey}-identify`,
         url
       );
-      
+
       console.log('Sending Identify message to integration queue');
       await sqsProcessor.sendMessage({
         journalKey,
@@ -48,19 +48,28 @@ const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url
         errorMessage: null,
         timestamp: new Date().toISOString(),
       });
-      
+
       console.log(`Successfully processed Identify phase for journal: ${journalKey}`);
     } else {
-      console.error(`Identify phase failed for journal: ${journalKey}`, identifyResult.errorMessage);
-      await sqsProcessor.sendMessage(createErrorMessage(
-        journalKey, url, 'Identify', identifyResult.errorCode, identifyResult.errorMessage
-      ));
+      console.error(
+        `Identify phase failed for journal: ${journalKey}`,
+        identifyResult.errorMessage
+      );
+      await sqsProcessor.sendMessage(
+        createErrorMessage(
+          journalKey,
+          url,
+          'Identify',
+          identifyResult.errorCode,
+          identifyResult.errorMessage
+        )
+      );
     }
   } catch (error) {
     console.error(`Failed to process Identify phase for journal: ${journalKey}`, error);
-    await sqsProcessor.sendMessage(createErrorMessage(
-      journalKey, url, 'Identify', 'IDENTIFY_PROCESSING_ERROR', error.message
-    ));
+    await sqsProcessor.sendMessage(
+      createErrorMessage(journalKey, url, 'Identify', 'IDENTIFY_PROCESSING_ERROR', error.message)
+    );
   }
 };
 
@@ -68,7 +77,7 @@ const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url
 const createPageCallback = (s3Processor, sqsProcessor, journalKey, url) => {
   return async (pageXml, pageNumber, recordsInPage, recordsProcessed) => {
     console.log(`Processing ListRecords page ${pageNumber} with ${recordsInPage} records`);
-    
+
     try {
       console.log(`Saving ListRecords page ${pageNumber} to S3`);
       const pageS3Result = await s3Processor.createAndUploadXml(
@@ -76,7 +85,7 @@ const createPageCallback = (s3Processor, sqsProcessor, journalKey, url) => {
         `${journalKey}-listrecords-page-${pageNumber}`,
         url
       );
-      
+
       console.log(`Sending ListRecords page ${pageNumber} message to integration queue`);
       await sqsProcessor.sendMessage({
         journalKey,
@@ -97,17 +106,28 @@ const createPageCallback = (s3Processor, sqsProcessor, journalKey, url) => {
         errorMessage: null,
         timestamp: new Date().toISOString(),
       });
-      
-      console.log(`Successfully processed and sent ListRecords page ${pageNumber} for journal: ${journalKey}`);
-      
+
+      console.log(
+        `Successfully processed and sent ListRecords page ${pageNumber} for journal: ${journalKey}`
+      );
+
       // Clear memory by forcing garbage collection
       if (global.gc) {
         global.gc();
       }
     } catch (pageError) {
-      console.error(`Failed to process ListRecords page ${pageNumber} for journal: ${journalKey}`, pageError);
+      console.error(
+        `Failed to process ListRecords page ${pageNumber} for journal: ${journalKey}`,
+        pageError
+      );
       await sqsProcessor.sendMessage({
-        ...createErrorMessage(journalKey, url, 'ListRecords', 'PAGE_PROCESSING_FAILED', pageError.message),
+        ...createErrorMessage(
+          journalKey,
+          url,
+          'ListRecords',
+          'PAGE_PROCESSING_FAILED',
+          pageError.message
+        ),
         pageNumber,
         recordsInPage,
         totalRecordsProcessed: recordsProcessed,
@@ -117,18 +137,33 @@ const createPageCallback = (s3Processor, sqsProcessor, journalKey, url) => {
 };
 
 // Helper function to process ListRecords phase
-const processListRecordsPhase = async (oaiProcessor, s3Processor, sqsProcessor, url, journalKey) => {
+const processListRecordsPhase = async (
+  oaiProcessor,
+  s3Processor,
+  sqsProcessor,
+  url,
+  journalKey
+) => {
   console.log(`Phase 2: Processing ListRecords request for journal: ${journalKey}`);
-  
+
   try {
     const pageCallback = createPageCallback(s3Processor, sqsProcessor, journalKey, url);
     const listRecordsResult = await oaiProcessor.processListRecords(url, journalKey, pageCallback);
-    
+
     if (!listRecordsResult.success) {
-      console.error(`ListRecords phase failed for journal: ${journalKey}`, listRecordsResult.errorMessage);
-      await sqsProcessor.sendMessage(createErrorMessage(
-        journalKey, url, 'ListRecords', listRecordsResult.errorCode, listRecordsResult.errorMessage
-      ));
+      console.error(
+        `ListRecords phase failed for journal: ${journalKey}`,
+        listRecordsResult.errorMessage
+      );
+      await sqsProcessor.sendMessage(
+        createErrorMessage(
+          journalKey,
+          url,
+          'ListRecords',
+          listRecordsResult.errorCode,
+          listRecordsResult.errorMessage
+        )
+      );
     } else {
       console.log(
         `Successfully processed ListRecords phase for journal: ${journalKey} - ${listRecordsResult.totalRecordsProcessed} records across ${listRecordsResult.pageCount} pages`
@@ -136,9 +171,15 @@ const processListRecordsPhase = async (oaiProcessor, s3Processor, sqsProcessor, 
     }
   } catch (error) {
     console.error(`Failed to process ListRecords phase for journal: ${journalKey}`, error);
-    await sqsProcessor.sendMessage(createErrorMessage(
-      journalKey, url, 'ListRecords', 'LISTRECORDS_PROCESSING_ERROR', error.message
-    ));
+    await sqsProcessor.sendMessage(
+      createErrorMessage(
+        journalKey,
+        url,
+        'ListRecords',
+        'LISTRECORDS_PROCESSING_ERROR',
+        error.message
+      )
+    );
   }
 };
 
