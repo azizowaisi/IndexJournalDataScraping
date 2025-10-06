@@ -101,11 +101,10 @@ describe('SqsMessageProcessor', () => {
       );
     });
 
-    it('should handle null companyKey in record message', async () => {
+    it('should send record message without companyKey', async () => {
       const messageData = {
         journalKey: 'test-journal',
         oaiUrl: 'https://example.com/oai',
-        companyKey: null,
         recordNumber: 1,
         pageNumber: 1,
         s3Bucket: 'test-bucket',
@@ -123,7 +122,7 @@ describe('SqsMessageProcessor', () => {
       await processor.sendRecordMessage(messageData);
 
       const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
-      expect(messageBody.companyKey).toBeNull();
+      expect(messageBody).not.toHaveProperty('companyKey');
     });
 
     it('should use default contentType when not provided', async () => {
@@ -290,11 +289,11 @@ describe('SqsMessageProcessor', () => {
       expect(messageBody).toEqual(
         expect.objectContaining({
           journalKey: 'test-journal',
+          companyKey: null,
           s3Url: 'https://test-bucket.s3.amazonaws.com/test-file.xml',
           s3Key: 'test-file.xml',
           messageType: 'file-processing-request',
           source: 'scraping-service',
-          success: true,
           timestamp: expect.any(String),
         })
       );
