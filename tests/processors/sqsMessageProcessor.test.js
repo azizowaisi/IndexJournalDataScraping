@@ -123,7 +123,7 @@ describe('SqsMessageProcessor', () => {
       await processor.sendRecordMessage(messageData);
 
       const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
-      expect(messageBody.companyKey).toBeNull();
+      expect(messageBody.companyKey).toBeUndefined();
     });
 
     it('should use default contentType when not provided', async () => {
@@ -192,7 +192,7 @@ describe('SqsMessageProcessor', () => {
       };
 
       await expect(processor.sendRecordMessage(messageData)).rejects.toThrow(
-        'Failed to send record message to SQS: SQS send failed'
+        'Failed to send message to SQS: SQS send failed'
       );
     });
   });
@@ -293,9 +293,10 @@ describe('SqsMessageProcessor', () => {
           oaiUrl: 'https://example.com/oai',
           s3Url: 'https://test-bucket.s3.amazonaws.com/test-file.xml',
           s3Key: 'test-file.xml',
-          messageType: 'journal-data',
+          messageType: 'file-processing-request',
           source: 'scraping-service',
           success: true,
+          timestamp: expect.any(String),
         })
       );
     });
@@ -314,7 +315,7 @@ describe('SqsMessageProcessor', () => {
       await processor.sendMessage(messageData);
 
       const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
-      expect(messageBody.companyKey).toBeNull();
+      expect(messageBody.companyKey).toBeUndefined();
     });
 
     it('should use default contentType when not provided', async () => {

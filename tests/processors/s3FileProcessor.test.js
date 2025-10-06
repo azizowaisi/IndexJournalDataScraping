@@ -254,9 +254,17 @@ describe('S3FileProcessor', () => {
 
       const result = await processor.createAndUploadXml(oaiData, journalKey, oaiUrl);
 
-      expect(result).toMatch(
-        /^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/oai-data\/test-journal-\d+\.xml$/
-      );
+      expect(result).toMatchObject({
+        s3Bucket: 'test-bucket',
+        s3Key: expect.stringMatching(/^oai-data\/test-journal-\d+\.xml$/),
+        s3Url: expect.stringMatching(
+          /^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/oai-data\/test-journal-\d+\.xml$/
+        ),
+        s3Path: expect.stringMatching(/^s3:\/\/test-bucket\/oai-data\/test-journal-\d+\.xml$/),
+        filename: expect.stringMatching(/^test-journal-\d+\.xml$/),
+        fileSize: expect.any(Number),
+        contentType: 'application/xml',
+      });
       expect(mockS3Client.send).toHaveBeenCalledTimes(1);
     });
 
@@ -267,7 +275,7 @@ describe('S3FileProcessor', () => {
 
       await expect(
         processor.createAndUploadXml('<test>data</test>', 'test-journal', 'https://example.com/oai')
-      ).rejects.toThrow('Failed to create and upload XML file: XML creation failed');
+      ).rejects.toThrow('XML creation failed');
     });
 
     it('should handle errors during S3 upload', async () => {
@@ -275,7 +283,7 @@ describe('S3FileProcessor', () => {
 
       await expect(
         processor.createAndUploadXml('<test>data</test>', 'test-journal', 'https://example.com/oai')
-      ).rejects.toThrow('Failed to create and upload XML file: S3 upload failed');
+      ).rejects.toThrow('Failed to upload to S3: S3 upload failed');
     });
   });
 

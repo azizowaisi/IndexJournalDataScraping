@@ -148,12 +148,16 @@ describe('Lambda Handler', () => {
         errorMessage: null,
       });
 
-      mockOaiProcessor.processListRecords.mockResolvedValue({
-        pageCount: 1,
-        totalRecordsProcessed: 0,
-        success: true,
-        errorCode: null,
-        errorMessage: null,
+      mockOaiProcessor.processListRecords.mockImplementation(async (url, journalKey, callback) => {
+        // Simulate one page of ListRecords
+        await callback('<OAI-PMH><ListRecords>test</ListRecords></OAI-PMH>', 1, 0, 0);
+        return {
+          pageCount: 1,
+          totalRecordsProcessed: 0,
+          success: true,
+          errorCode: null,
+          errorMessage: null,
+        };
       });
 
       mockS3Processor.createAndUploadXml.mockResolvedValue(
@@ -185,7 +189,7 @@ describe('Lambda Handler', () => {
       expect(result).toEqual({ statusCode: 200, body: 'SUCCESS' });
       expect(mockOaiProcessor.processIdentify).toHaveBeenCalledTimes(2);
       expect(mockOaiProcessor.processListRecords).toHaveBeenCalledTimes(2);
-      expect(mockSqsProcessor.sendMessage).toHaveBeenCalledTimes(4); // 2 phases × 2 messages
+      expect(mockSqsProcessor.sendMessage).toHaveBeenCalledTimes(6); // 2 phases × 2 messages + 2 ListRecords pages
     });
 
     it('should handle empty records array', async () => {
