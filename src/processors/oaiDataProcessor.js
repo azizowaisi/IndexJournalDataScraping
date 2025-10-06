@@ -77,6 +77,73 @@ class OaiDataProcessor {
   }
 
   /**
+   * Helper method to make HTTP request and validate response
+   */
+  async makeListRecordsRequest(requestUrl) {
+    console.log('Making ListRecords request to:', requestUrl);
+    
+    const response = await axios.get(requestUrl, this.axiosConfig);
+    
+    if (response.status !== 200) {
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+    }
+    
+    if (!response.data) {
+      throw new Error('Empty response received from OAI endpoint');
+    }
+    
+    console.log(`Successfully received ListRecords response with ${response.data.length} characters`);
+    return response;
+  }
+
+  /**
+   * Helper method to process a single page of ListRecords
+   */
+  async processListRecordsPage(response, pageCount, pageCallback, totalRecordsProcessed) {
+    const result = await parseStringPromise(response.data, {
+      explicitArray: false,
+      ignoreAttrs: false, // Don't ignore attributes to capture resumption token
+    });
+
+    if (!result?.['OAI-PMH']?.ListRecords) {
+      console.log('No ListRecords found in OAI response or invalid XML structure.');
+      return { recordsInPage: 0, newResumptionToken: null };
+    }
+
+    const listRecords = result['OAI-PMH'].ListRecords;
+    
+    // Count records in this page
+    let recordsInPage = 0;
+    if (listRecords.record) {
+      const records = Array.isArray(listRecords.record) ? listRecords.record : [listRecords.record];
+      recordsInPage = records.length;
+    }
+
+    // Call the callback function for this page
+    await pageCallback(response.data, pageCount, recordsInPage, totalRecordsProcessed + recordsInPage);
+
+    console.log(`Processed page ${pageCount} with ${recordsInPage} records.`);
+
+    // Check for resumption token
+    const newResumptionToken = this.extractResumptionTokenFromParsed(listRecords);
+    return { recordsInPage, newResumptionToken };
+  }
+
+  /**
+   * Helper method to handle pagination logic
+   */
+  async handlePagination(resumptionToken, pageCount) {
+    if (resumptionToken) {
+      console.log(`Found resumption token: ${resumptionToken}, continuing pagination...`);
+      await this.delay(1000); // 1 second delay between requests
+      return resumptionToken;
+    } else {
+      console.log('No resumption token found, pagination complete');
+      return null;
+    }
+  }
+
+  /**
    * Phase 2: Process ListRecords request with pagination
    * @param {string} oaiUrl - The OAI endpoint URL
    * @param {string} journalKey - The journal identifier
@@ -89,7 +156,6 @@ class OaiDataProcessor {
     );
 
     try {
-      // Validate OAI URL
       this.validateOaiUrl(oaiUrl);
 
       let resumptionToken = null;
@@ -100,72 +166,15 @@ class OaiDataProcessor {
         pageCount++;
         console.log(`Fetching ListRecords page ${pageCount}`);
 
-        let requestUrl;
-        if (!resumptionToken) {
-          // First request - get initial data
-          requestUrl = this.buildListRecordsUrl(oaiUrl);
-        } else {
-          // Subsequent requests - use resumption token
-          requestUrl = this.buildResumptionTokenUrl(oaiUrl, resumptionToken);
-        }
+        const requestUrl = resumptionToken 
+          ? this.buildResumptionTokenUrl(oaiUrl, resumptionToken)
+          : this.buildListRecordsUrl(oaiUrl);
 
-        console.log('Making ListRecords request to:', requestUrl);
-
-        // Make HTTP request
-        const response = await axios.get(requestUrl, this.axiosConfig);
-
-        if (response.status !== 200) {
-          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-        }
-
-        if (!response.data) {
-          throw new Error('Empty response received from OAI endpoint');
-        }
-
-        console.log(
-          `Successfully received ListRecords response with ${response.data.length} characters`
-        );
-
-        // Parse XML response
-        const result = await parseStringPromise(response.data, {
-          explicitArray: false,
-          ignoreAttrs: false, // Don't ignore attributes to capture resumption token
-        });
-
-        if (result && result['OAI-PMH'] && result['OAI-PMH'].ListRecords) {
-          const listRecords = result['OAI-PMH'].ListRecords;
-
-          // Count records in this page
-          let recordsInPage = 0;
-          if (listRecords.record) {
-            const records = Array.isArray(listRecords.record)
-              ? listRecords.record
-              : [listRecords.record];
-            recordsInPage = records.length;
-            totalRecordsProcessed += recordsInPage;
-          }
-
-          // Call the callback function for this page
-          await pageCallback(response.data, pageCount, recordsInPage, totalRecordsProcessed);
-
-          console.log(
-            `Processed page ${pageCount} with ${recordsInPage} records. Total processed: ${totalRecordsProcessed}`
-          );
-
-          // Check for resumption token from already parsed result
-          const newResumptionToken = this.extractResumptionTokenFromParsed(listRecords);
-          if (newResumptionToken && newResumptionToken !== resumptionToken) {
-            resumptionToken = newResumptionToken;
-            console.log(`Found resumption token: ${resumptionToken}, continuing pagination...`);
-            await this.delay(1000); // 1 second delay between requests
-          } else {
-            console.log('No resumption token found, pagination complete');
-            resumptionToken = null; // End pagination
-          }
-        } else {
-          console.log('No ListRecords found in OAI response or invalid XML structure.');
-          resumptionToken = null; // Stop pagination if structure is unexpected
-        }
+        const response = await this.makeListRecordsRequest(requestUrl);
+        const { recordsInPage, newResumptionToken } = await this.processListRecordsPage(response, pageCount, pageCallback, totalRecordsProcessed);
+        
+        totalRecordsProcessed += recordsInPage;
+        resumptionToken = await this.handlePagination(newResumptionToken, pageCount);
 
         // Safety check
         if (pageCount >= this.maxPages) {
@@ -261,17 +270,11 @@ class OaiDataProcessor {
           return listRecords.resumptionToken;
         } else if (listRecords.resumptionToken._) {
           return listRecords.resumptionToken._;
-        } else if (listRecords.resumptionToken.$ && listRecords.resumptionToken.$.resumptionToken) {
+        } else if (listRecords.resumptionToken.$?.resumptionToken) {
           return listRecords.resumptionToken.$.resumptionToken;
-        } else if (
-          listRecords.resumptionToken.$ &&
-          listRecords.resumptionToken.$['resumptionToken']
-        ) {
+        } else if (listRecords.resumptionToken.$?.['resumptionToken']) {
           return listRecords.resumptionToken.$['resumptionToken'];
-        } else if (
-          listRecords.resumptionToken['$'] &&
-          listRecords.resumptionToken['$']['resumptionToken']
-        ) {
+        } else if (listRecords.resumptionToken['$']?.['resumptionToken']) {
           return listRecords.resumptionToken['$']['resumptionToken'];
         } else {
           // If it's an object, try to extract the token value
@@ -301,12 +304,8 @@ class OaiDataProcessor {
         }
 
         try {
-          const resumptionToken = result?.['OAI-PMH']?.ListRecords?.resumptionToken;
-          if (resumptionToken && resumptionToken._) {
-            resolve(resumptionToken._);
-          } else {
-            resolve(null);
-          }
+          const resumptionToken = result?.['OAI-PMH']?.ListRecords?.resumptionToken?._;
+          resolve(resumptionToken || null);
         } catch (error) {
           console.warn('Error extracting resumption token:', error.message);
           resolve(null);
@@ -316,38 +315,66 @@ class OaiDataProcessor {
   }
 
   /**
+   * Get error code for network/connection errors
+   */
+  getNetworkErrorCode(error) {
+    const networkErrorMap = {
+      'ECONNREFUSED': 'CONNECTION_REFUSED',
+      'ENOTFOUND': 'DNS_RESOLUTION_FAILED',
+      'ETIMEDOUT': 'TIMEOUT_ERROR',
+      'ECONNRESET': 'CONNECTION_RESET',
+    };
+    return networkErrorMap[error.code] || null;
+  }
+
+  /**
+   * Get error code for HTTP status errors
+   */
+  getHttpErrorCode(error) {
+    const status = error.response?.status;
+    if (!status) return null;
+
+    if (status >= 400 && status < 500) return `HTTP_CLIENT_ERROR_${status}`;
+    if (status >= 500 && status < 600) return `HTTP_SERVER_ERROR_${status}`;
+    return `HTTP_ERROR_${status}`;
+  }
+
+  /**
+   * Get error code for Axios specific errors
+   */
+  getAxiosErrorCode(error) {
+    if (error.name !== 'AxiosError') return null;
+
+    const axiosErrorMap = {
+      'ECONNABORTED': 'REQUEST_TIMEOUT',
+      'ERR_NETWORK': 'NETWORK_ERROR',
+    };
+    return axiosErrorMap[error.code] || 'AXIOS_ERROR';
+  }
+
+  /**
+   * Get error code for generic error types
+   */
+  getGenericErrorCode(error) {
+    const genericErrorMap = {
+      'TypeError': 'TYPE_ERROR',
+      'SyntaxError': 'SYNTAX_ERROR',
+      'ReferenceError': 'REFERENCE_ERROR',
+    };
+    return genericErrorMap[error.name] || null;
+  }
+
+  /**
    * Get standardized error code from error object
    */
   getErrorCode(error) {
     if (!error) return 'UNKNOWN_ERROR';
 
-    // Network/HTTP errors
-    if (error.code === 'ECONNREFUSED') return 'CONNECTION_REFUSED';
-    if (error.code === 'ENOTFOUND') return 'DNS_RESOLUTION_FAILED';
-    if (error.code === 'ETIMEDOUT') return 'TIMEOUT_ERROR';
-    if (error.code === 'ECONNRESET') return 'CONNECTION_RESET';
-
-    // HTTP status errors
-    if (error.response && error.response.status) {
-      const status = error.response.status;
-      if (status >= 400 && status < 500) return `HTTP_CLIENT_ERROR_${status}`;
-      if (status >= 500 && status < 600) return `HTTP_SERVER_ERROR_${status}`;
-      return `HTTP_ERROR_${status}`;
-    }
-
-    // Axios specific errors
-    if (error.name === 'AxiosError') {
-      if (error.code === 'ECONNABORTED') return 'REQUEST_TIMEOUT';
-      if (error.code === 'ERR_NETWORK') return 'NETWORK_ERROR';
-      return 'AXIOS_ERROR';
-    }
-
-    // Generic error types
-    if (error.name === 'TypeError') return 'TYPE_ERROR';
-    if (error.name === 'SyntaxError') return 'SYNTAX_ERROR';
-    if (error.name === 'ReferenceError') return 'REFERENCE_ERROR';
-
-    return 'UNKNOWN_ERROR';
+    return this.getNetworkErrorCode(error) ||
+           this.getHttpErrorCode(error) ||
+           this.getAxiosErrorCode(error) ||
+           this.getGenericErrorCode(error) ||
+           'UNKNOWN_ERROR';
   }
 
   /**
