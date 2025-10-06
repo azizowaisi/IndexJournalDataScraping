@@ -1,12 +1,12 @@
-import { OaiDataProcessor } from '../../src/processors/oaiDataProcessor.js';
+const { OaiDataProcessor } = require('../../src/processors/oaiDataProcessor');
 
 // Mock axios
 jest.mock('axios');
-import axios from 'axios';
+const axios = require('axios');
 
 // Mock xml2js
 jest.mock('xml2js');
-import { parseStringPromise } from 'xml2js';
+const { parseStringPromise } = require('xml2js');
 
 describe('OaiDataProcessor', () => {
   let processor;

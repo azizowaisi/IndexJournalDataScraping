@@ -1,8 +1,8 @@
-import { S3FileProcessor } from '../../src/processors/s3FileProcessor.js';
+const { S3FileProcessor } = require('../../src/processors/s3FileProcessor');
 
 // Mock AWS SDK v3
 jest.mock('@aws-sdk/client-s3');
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 describe('S3FileProcessor', () => {
   let processor;

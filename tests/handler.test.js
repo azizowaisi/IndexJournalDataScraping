@@ -1,13 +1,13 @@
-import { handler } from '../src/handler.js';
+const { handler } = require('../src/handler');
 
 // Mock the processors
 jest.mock('../src/processors/oaiDataProcessor');
 jest.mock('../src/processors/s3FileProcessor');
 jest.mock('../src/processors/sqsMessageProcessor');
 
-import { OaiDataProcessor } from '../src/processors/oaiDataProcessor.js';
-import { S3FileProcessor } from '../src/processors/s3FileProcessor.js';
-import { SqsMessageProcessor } from '../src/processors/sqsMessageProcessor.js';
+const { OaiDataProcessor } = require('../src/processors/oaiDataProcessor');
+const { S3FileProcessor } = require('../src/processors/s3FileProcessor');
+const { SqsMessageProcessor } = require('../src/processors/sqsMessageProcessor');
 
 describe('Lambda Handler', () => {
   let mockOaiProcessor;

@@ -135,4 +135,4 @@ class SqsMessageProcessor {
   }
 }
 
-export { SqsMessageProcessor };
+module.exports = { SqsMessageProcessor };

@@ -1,8 +1,8 @@
-import { SqsMessageProcessor } from '../../src/processors/sqsMessageProcessor.js';
+const { SqsMessageProcessor } = require('../../src/processors/sqsMessageProcessor');
 
 // Mock AWS SDK v3
 jest.mock('@aws-sdk/client-sqs');
-import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 
 describe('SqsMessageProcessor', () => {
   let processor;
