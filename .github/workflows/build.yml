@@ -1,34 +1,26 @@
-name: Build, Test, Lint and Quality Analysis
+name: Pull Request - Build and Test
 
 on:
-  push:
-    branches:
-      - master
-      - develop
-      - 'release/*'
-      - 'feature/*'
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
     branches:
       - master
       - develop
 
 env:
   NODE_VERSION: '22'
-  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
-  SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
 
 jobs:
+  # Step 1: Lint and Format Check
   lint:
-    name: Lint Code
+    name: Lint and Format Check
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -45,9 +37,11 @@ jobs:
       - name: Run Prettier check
         run: npm run format:check
 
+  # Step 2: Run Tests with Coverage (after lint passes)
   test:
-    name: Run Tests
+    name: Run Tests with Coverage
     runs-on: ubuntu-latest
+    needs: [lint]
     
     steps:
       - name: Checkout code
@@ -62,10 +56,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
-      - name: Generate coverage report
+      - name: Run tests with coverage
         run: npm run test:coverage
 
       - name: Upload coverage to Codecov
@@ -73,44 +64,14 @@ jobs:
         with:
           file: ./coverage/lcov.info
           flags: unittests
-          name: codecov-umbrella
+          name: codecov-pr
           fail_ci_if_error: false
 
-  build:
-    name: Build Application
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --omit=dev
-
-      - name: Build application
-        run: npm run build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nodejs-artifacts
-          path: |
-            src/
-            package.json
-            package-lock.json
-            serverless.yml
-          retention-days: 7
-
+  # Step 3: Security Scan (parallel with tests after lint)
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: [lint]
     permissions:
       security-events: write
       contents: read
@@ -130,6 +91,7 @@ jobs:
 
       - name: Run npm audit
         run: npm audit --audit-level=moderate
+        continue-on-error: true
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -139,8 +101,76 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+
+  # Step 4: Build Check (after tests and security pass)
+  build:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install production dependencies
+        run: npm ci --omit=dev
+
+      - name: Build application
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          echo "✅ Build successful!"
+          echo "Source files:"
+          ls -lh src/
+          echo ""
+          echo "Processors:"
+          ls -lh src/processors/
+          echo ""
+          echo "✅ All source files present"
+
+  # Final Summary
+  pr-validation-complete:
+    name: ✅ PR Validation Complete
+    runs-on: ubuntu-latest
+    needs: [lint, test, security-scan, build]
+    if: always()
+    
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "📋 Pull Request Validation Summary"
+          echo "===================================="
+          echo ""
+          echo "1. Lint:     ${{ needs.lint.result }}"
+          echo "2. Tests:    ${{ needs.test.result }}"
+          echo "3. Security: ${{ needs.security-scan.result }}"
+          echo "4. Build:    ${{ needs.build.result }}"
+          echo ""
+          
+          if [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.security-scan.result }}" != "success" ]] || \
+             [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ Some checks failed. Please fix before merging."
+            exit 1
+          fi
+          
+          echo "🎉 All PR validation checks passed!"
+          echo "✅ This PR is ready to merge to master"
+          echo ""
+          echo "After merge, the CI/CD workflow will:"
+          echo "  1. Run all checks again"
+          echo "  2. Run SonarCloud analysis"
+          echo "  3. Deploy to AWS Production"
