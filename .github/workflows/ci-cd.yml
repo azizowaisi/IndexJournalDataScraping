@@ -1,17 +1,18 @@
-name: CI/CD - Journal Index Data Scraping
+name: CI/CD - Deploy to Production
 
 on:
   push:
-    branches: [master]
-  pull_request:
-    types: [closed]
-    branches: [master]
+    branches:
+      - master
+
+env:
+  NODE_VERSION: '22'
 
 jobs:
-  sonarcloud:
-    name: SonarCloud Analysis
+  # Step 1: Lint and Format Check
+  lint:
+    name: Lint and Format Check
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     
     steps:
       - name: Checkout code
@@ -22,7 +23,104 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npm run format:check
+
+  # Step 2: Run Tests with Coverage (after lint)
+  test:
+    name: Run Tests with Coverage
+    runs-on: ubuntu-latest
+    needs: [lint]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-production
+          fail_ci_if_error: false
+
+  # Step 3: Security Scan (parallel with tests)
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [lint]
+    permissions:
+      security-events: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Step 4: SonarCloud Analysis (after tests)
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: [test]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -40,17 +138,16 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.coverage.exclusions=**/*.test.js,**/__mocks__/**,**/jest.setup.js
-            -Dsonar.ci.analysis=true
-            -Dsonar.ci.analysis.force=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  build-deploy:
+  # Step 5: Build Application (after tests and security)
+  build:
+    name: Build Application
     runs-on: ubuntu-latest
-    needs: [sonarcloud]
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
-
+    needs: [test, security]
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -58,19 +155,49 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install production dependencies
+        run: npm ci --omit=dev
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: |
+            src/
+            package.json
+            package-lock.json
+            serverless.yml
+          retention-days: 7
+
+  # Step 6: Deploy to Production (after all checks pass)
+  deploy:
+    name: Deploy to AWS Production
+    runs-on: ubuntu-latest
+    needs: [build, sonarcloud]
+    environment:
+      name: production
+      url: https://console.aws.amazon.com/lambda
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
-      - name: Build application
-        run: npm run build
-
-      - name: Install Serverless Framework v4
+      - name: Install Serverless Framework
         run: npm install -g serverless@4
 
       - name: Deploy to AWS
@@ -86,16 +213,16 @@ jobs:
           SQS_INTEGRATION_QUEUE_URL: ${{ secrets.SQS_INTEGRATION_QUEUE_URL }}
           SQS_INTEGRATION_QUEUE_ARN: ${{ secrets.SQS_INTEGRATION_QUEUE_ARN }}
         run: |
+          echo "🔐 Logging into Serverless Framework..."
           echo "$SERVERLESS_ACCESS_KEY" | serverless login --key
 
+          echo "📋 Checking CloudFormation stack status..."
           check_stack_status() {
             local stack_name="index-journals-data-scraping-prod"
             local status=$(aws cloudformation describe-stacks --stack-name $stack_name --region $AWS_REGION --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-            echo "Current stack status: $status"
             echo $status
           }
 
-          echo "Checking CloudFormation stack status..."
           max_attempts=30
           attempt=1
 
@@ -105,15 +232,15 @@ jobs:
 
             case $status in
               "CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE"|"STACK_NOT_FOUND")
-                echo "Stack is in a deployable state: $status"
+                echo "✅ Stack is ready for deployment"
                 break
                 ;;
               "UPDATE_IN_PROGRESS"|"CREATE_IN_PROGRESS")
-                echo "Stack is still updating, waiting 30 seconds..."
+                echo "⏳ Stack updating, waiting 30 seconds..."
                 sleep 30
                 ;;
               *)
-                echo "Stack is in state: $status - proceeding with deployment"
+                echo "Stack state: $status - proceeding anyway"
                 break
                 ;;
             esac
@@ -121,10 +248,7 @@ jobs:
             attempt=$((attempt + 1))
           done
 
-          if [ $attempt -gt $max_attempts ]; then
-            echo "Timeout waiting for stack to be ready. Proceeding with deployment..."
-          fi
-
+          echo "🚀 Starting deployment to production..."
           max_deploy_attempts=3
           deploy_attempt=1
 
@@ -132,19 +256,64 @@ jobs:
             echo "Deployment attempt $deploy_attempt/$max_deploy_attempts"
 
             if sls deploy --stage prod --region $AWS_REGION; then
-              echo "Deployment successful!"
+              echo "✅ Deployment successful!"
               break
             else
-              echo "Deployment failed on attempt $deploy_attempt"
+              echo "❌ Deployment failed on attempt $deploy_attempt"
 
               if [ $deploy_attempt -lt $max_deploy_attempts ]; then
-                echo "Waiting 60 seconds before retry..."
+                echo "⏳ Waiting 60 seconds before retry..."
                 sleep 60
               else
-                echo "All deployment attempts failed"
+                echo "❌ All deployment attempts failed"
                 exit 1
               fi
             fi
 
             deploy_attempt=$((deploy_attempt + 1))
           done
+
+      - name: Verify Deployment
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "🔍 Verifying Lambda function..."
+          aws lambda get-function \
+            --function-name index-journals-data-scraping-prod-scraping \
+            --region $AWS_REGION \
+            --query 'Configuration.{Name:FunctionName,Runtime:Runtime,State:State,LastModified:LastModified}' \
+            --output table
+
+      - name: Deployment Summary
+        run: |
+          echo ""
+          echo "🎉 Deployment Summary"
+          echo "===================="
+          echo "Environment: Production"
+          echo "Region: ${{ secrets.AWS_REGION }}"
+          echo "Function: index-journals-data-scraping-prod-scraping"
+          echo "S3 Bucket: ${{ secrets.S3_BUCKET_NAME }}"
+          echo ""
+          echo "✅ Deployment completed successfully!"
+          echo ""
+          echo "View logs:"
+          echo "aws logs tail /aws/lambda/index-journals-data-scraping-prod-scraping --follow"
+
+  # Summary Job
+  deployment-complete:
+    name: ✅ Deployment Complete
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+    
+    steps:
+      - name: Final Status
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "🎉 Production deployment completed successfully!"
+          else
+            echo "❌ Production deployment failed!"
+            exit 1
+          fi
