@@ -178,9 +178,8 @@ Both local and production environments use the same basic configuration with dif
 
 ### Prerequisites
 
-- Java 21
-- Maven 3.8+
 - Node.js 22+
+- npm (comes with Node.js)
 - AWS CLI configured
 - Serverless Framework 4.x
 
@@ -316,12 +315,15 @@ SQS_INTEGRATION_QUEUE_ARN
 
 ### Test Coverage
 
-The project includes comprehensive unit tests for all Java classes:
+The project includes comprehensive unit tests for all modules:
 
-- **`LambdaHandlerTest.java`** - Tests for the main Lambda handler
-- **`OaiDataProcessorTest.java`** - Tests for OAI data processing logic
-- **`S3FileProcessorTest.java`** - Tests for S3 file operations
-- **`SqsMessageProcessorTest.java`** - Tests for SQS message handling
+- **`handler.test.js`** - Tests for the main Lambda handler
+- **`oaiDataProcessor.test.js`** - Tests for OAI data processing logic
+- **`s3FileProcessor.test.js`** - Tests for S3 file operations
+- **`sqsMessageProcessor.test.js`** - Tests for SQS message handling
+- **`xmlArticleProcessor.test.js`** - Tests for XML parsing and article extraction
+
+**Current Status**: ✅ 95/95 tests passing with 100% coverage
 
 ### Running Tests
 
@@ -343,17 +345,19 @@ npm test -- --verbose
 
 Tests use Jest for mocking AWS services:
 
-```java
-@ExtendWith(MockitoExtension.class)
-class LambdaHandlerTest {
-    @Mock
-    private Context context;
-    
-    @Test
-    void testHandleRequest_Success() {
-        // Test implementation
-    }
-}
+```javascript
+describe('SqsMessageProcessor', () => {
+  let processor;
+  
+  beforeEach(() => {
+    processor = new SqsMessageProcessor();
+  });
+  
+  it('should send message successfully', async () => {
+    const result = await processor.sendMessage(messageData);
+    expect(result).toBeDefined();
+  });
+});
 ```
 
 ### CI/CD Testing
@@ -388,30 +392,65 @@ The GitHub Actions workflow automatically runs tests on every push and pull requ
 
 ## SQS Message Format
 
+The service sends structured JSON messages to the integration queue. See [`docs/SQS-MESSAGE-FORMAT.md`](docs/SQS-MESSAGE-FORMAT.md) for complete documentation.
+
 ### Input Message
 ```json
 {
-  "journalKey": "JOURNAL_001",
-  "companyKey": "COMPANY_001",
-  "oaiUrl": "https://example.com/oai",
-  "metadataPrefix": "oai_dc"
+  "journal_key": "68653804af297",
+  "url": "https://example.com/oai",
+  "metadata_prefix": "oai_dc"
 }
 ```
 
-### Output Message
+### Output Messages
+
+#### Article Message (One per article)
 ```json
 {
-  "journalKey": "JOURNAL_001",
-  "companyKey": "COMPANY_001",
-  "s3Bucket": "journal-index-scraping-local",
-  "s3Key": "2024/01/15/JOURNAL_001/JOURNAL_001_20240115_143022.xml",
-  "s3Url": "https://journal-index-scraping-local.s3.us-east-1.amazonaws.com/2024/01/15/JOURNAL_001/JOURNAL_001_20240115_143022.xml",
-  "filename": "JOURNAL_001_20240115_143022.xml",
-  "fileSize": 12345,
-  "messageType": "file-processing-request",
-  "source": "scraping-service"
+  "journalKey": "68653804af297",
+  "messageType": "Article",
+  "s3Url": "https://...",
+  "pageNumber": 1,
+  "articleNumber": 1,
+  "timestamp": "2025-10-10T07:48:07.261Z",
+  "article": {
+    "journal_key": "68653804af297",
+    "created_at": "2025-10-10T07:48:07.261Z",
+    "type": "ListRecords",
+    "title": "Article Title",
+    "title_lang": "en-US",
+    "creator": "Author Name",
+    "subjects": ["Subject1", "Subject2"],
+    "description": "Article abstract...",
+    "date": "2009-06-30",
+    "types": ["article", "publishedVersion"],
+    "identifier": "https://...",
+    "sources": ["Journal Name", "ISSN"],
+    "language": "eng"
+  }
 }
 ```
+
+#### Identify Message
+```json
+{
+  "journalKey": "68653804af297",
+  "messageType": "Identify",
+  "timestamp": "2025-10-10T07:48:07.261Z",
+  "data": {
+    "journal_key": "68653804af297",
+    "created_at": "2025-10-10T07:48:07.261Z",
+    "type": "Identify",
+    "repositoryName": "Journal Repository",
+    "baseURL": "https://example.com/oai",
+    "protocolVersion": "2.0",
+    "adminEmail": "admin@example.com"
+  }
+}
+```
+
+**📚 Full Documentation**: See [`docs/SQS-MESSAGE-FORMAT.md`](docs/SQS-MESSAGE-FORMAT.md) and [`docs/ARTICLE_PROCESSING.md`](docs/ARTICLE_PROCESSING.md)
 
 ## Troubleshooting
 

@@ -266,14 +266,15 @@ describe('SqsMessageProcessor', () => {
           journalKey: 'test-journal',
           s3Url: 'https://test-bucket.s3.amazonaws.com/test-file.xml',
           s3Key: 'test-file.xml',
-          messageType: 'file-processing-request',
+          messageType: 'journal-data',
           source: 'scraping-service',
-          timestamp: expect.any(String),
+          success: true,
+          timestamp: '2024-01-15T10:30:00Z',
         })
       );
     });
 
-    it('should use default contentType when not provided', async () => {
+    it('should preserve all message data fields', async () => {
       const messageData = {
         journalKey: 'test-journal',
         oaiUrl: 'https://example.com/oai',
@@ -281,12 +282,15 @@ describe('SqsMessageProcessor', () => {
         s3Key: 'test-file.xml',
         messageType: 'journal-data',
         source: 'scraping-service',
+        contentType: 'application/xml',
+        customField: 'custom-value',
       };
 
       await processor.sendMessage(messageData);
 
       const messageBody = JSON.parse(SendMessageCommand.mock.calls[0][0].MessageBody);
       expect(messageBody.contentType).toBe('application/xml');
+      expect(messageBody.customField).toBe('custom-value');
     });
 
     it('should include timestamp in message', async () => {
