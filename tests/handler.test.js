@@ -125,17 +125,20 @@ describe('Lambda Handler', () => {
         })
       );
 
-      // Verify Article SQS message (individual articles are now sent)
+      // Verify ArticleBatch SQS message (articles are batched)
       expect(mockSqsProcessor.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           journalKey: 'test-journal-123',
           oaiUrl: 'https://example.com/oai',
-          messageType: 'Article',
+          messageType: 'ArticleBatch',
           pageNumber: 1,
-          articleNumber: 1,
+          batchNumber: 1,
+          totalBatches: 1,
+          articlesInBatch: 1,
           totalArticlesInPage: 1,
           totalRecordsProcessed: 1,
           success: true,
+          articles: expect.any(Array),
         })
       );
     });
