@@ -134,10 +134,7 @@ const createPageCallback = (s3Processor, sqsProcessor, articleProcessor, journal
           });
           successCount++;
         } catch (articleError) {
-          console.error(
-            `Failed to send article ${i + 1} from page ${pageNumber}:`,
-            articleError
-          );
+          console.error(`Failed to send article ${i + 1} from page ${pageNumber}:`, articleError);
           failureCount++;
         }
       }

@@ -69,13 +69,11 @@ class XmlArticleProcessor {
       }
 
       const listRecords = result['OAI-PMH'].ListRecords;
-      
+
       // Handle both single record and multiple records
       let records = [];
       if (listRecords.record) {
-        records = Array.isArray(listRecords.record) 
-          ? listRecords.record 
-          : [listRecords.record];
+        records = Array.isArray(listRecords.record) ? listRecords.record : [listRecords.record];
       }
 
       console.log(`Found ${records.length} records in XML`);
@@ -118,7 +116,7 @@ class XmlArticleProcessor {
         journal_key: journalKey,
         created_at: new Date().toISOString(),
         type: 'ListRecords',
-        
+
         // Title with language
         title: titleData.value,
         ...(titleData.lang && { title_lang: titleData.lang }),
@@ -183,19 +181,19 @@ class XmlArticleProcessor {
    */
   extractValue(field) {
     if (!field) return null;
-    
+
     if (typeof field === 'string') {
       return field.trim();
     }
-    
+
     if (field._ && typeof field._ === 'string') {
       return field._.trim();
     }
-    
+
     if (Array.isArray(field)) {
       return field.length > 0 ? this.extractValue(field[0]) : null;
     }
-    
+
     return null;
   }
 
@@ -206,12 +204,12 @@ class XmlArticleProcessor {
    */
   extractValueWithLang(field) {
     if (!field) return { value: null, lang: null };
-    
+
     // If it's a simple string
     if (typeof field === 'string') {
       return { value: field.trim(), lang: null };
     }
-    
+
     // If it's an object with _ (value) and xml:lang attribute
     if (typeof field === 'object' && field._) {
       return {
@@ -219,12 +217,12 @@ class XmlArticleProcessor {
         lang: field['xml:lang'] || field.lang || null,
       };
     }
-    
+
     // If it's an array, get the first element
     if (Array.isArray(field) && field.length > 0) {
       return this.extractValueWithLang(field[0]);
     }
-    
+
     return { value: null, lang: null };
   }
 
@@ -233,11 +231,11 @@ class XmlArticleProcessor {
    */
   extractArrayValue(field) {
     if (!field) return [];
-    
+
     if (Array.isArray(field)) {
       return field.map(item => this.extractValue(item)).filter(v => v !== null);
     }
-    
+
     const singleValue = this.extractValue(field);
     return singleValue ? [singleValue] : [];
   }
@@ -277,8 +275,11 @@ class XmlArticleProcessor {
 
       return {
         valid: true,
-        type: result['OAI-PMH'].Identify ? 'Identify' : 
-              result['OAI-PMH'].ListRecords ? 'ListRecords' : 'Unknown',
+        type: result['OAI-PMH'].Identify
+          ? 'Identify'
+          : result['OAI-PMH'].ListRecords
+            ? 'ListRecords'
+            : 'Unknown',
       };
     } catch (error) {
       return {
@@ -290,4 +291,3 @@ class XmlArticleProcessor {
 }
 
 module.exports = { XmlArticleProcessor };
-

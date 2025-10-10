@@ -25,7 +25,7 @@ class SqsMessageProcessor {
       const message = {
         // Spread all incoming messageData to preserve everything
         ...messageData,
-        
+
         // Ensure timestamp is set
         timestamp: messageData.timestamp || new Date().toISOString(),
       };
