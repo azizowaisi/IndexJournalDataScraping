@@ -104,13 +104,24 @@ const createPageCallback = (s3Processor, sqsProcessor, articleProcessor, journal
       console.log(`Parsing ListRecords XML to extract ${recordsInPage} individual articles`);
       const articles = await articleProcessor.parseListRecordsXml(pageXml, journalKey);
 
-      console.log(`Sending ${articles.length} individual articles to integration queue`);
+      // Batch articles into groups of 50
+      const BATCH_SIZE = 50;
+      const batches = [];
+      for (let i = 0; i < articles.length; i += BATCH_SIZE) {
+        batches.push(articles.slice(i, i + BATCH_SIZE));
+      }
 
-      // Send each article as a separate message to SQS
+      console.log(
+        `Sending ${articles.length} articles in ${batches.length} batch(es) to integration queue`
+      );
+
+      // Send batches to SQS
       let successCount = 0;
       let failureCount = 0;
 
-      for (let i = 0; i < articles.length; i++) {
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+
         try {
           await sqsProcessor.sendMessage({
             journalKey,
@@ -119,28 +130,36 @@ const createPageCallback = (s3Processor, sqsProcessor, articleProcessor, journal
             s3Key: pageS3Result.s3Key,
             s3Path: pageS3Result.s3Path,
             s3FileName: pageS3Result.filename,
-            messageType: 'Article',
+            messageType: 'ArticleBatch',
             source: 'scraping-service',
             pageNumber,
-            articleNumber: i + 1,
+            batchNumber: batchIndex + 1,
+            totalBatches: batches.length,
+            articlesInBatch: batch.length,
             totalArticlesInPage: articles.length,
-            totalRecordsProcessed: recordsProcessed - recordsInPage + i + 1,
+            totalRecordsProcessed: recordsProcessed,
             success: true,
             errorCode: null,
             errorMessage: null,
             timestamp: new Date().toISOString(),
-            // Article data in JSON format
-            article: articles[i],
+            // Array of articles in this batch
+            articles: batch,
           });
-          successCount++;
-        } catch (articleError) {
-          console.error(`Failed to send article ${i + 1} from page ${pageNumber}:`, articleError);
-          failureCount++;
+          successCount += batch.length;
+          console.log(
+            `Sent batch ${batchIndex + 1}/${batches.length} with ${batch.length} articles`
+          );
+        } catch (batchError) {
+          console.error(
+            `Failed to send batch ${batchIndex + 1} from page ${pageNumber}:`,
+            batchError
+          );
+          failureCount += batch.length;
         }
       }
 
       console.log(
-        `Successfully sent ${successCount}/${articles.length} articles from page ${pageNumber}. Failures: ${failureCount}`
+        `Successfully sent ${successCount}/${articles.length} articles in ${batches.length} batch(es) from page ${pageNumber}. Failures: ${failureCount}`
       );
 
       // Clear memory by forcing garbage collection
