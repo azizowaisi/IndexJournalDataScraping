@@ -68,7 +68,7 @@ jobs:
           fail_ci_if_error: false
 
   # Step 3: Security Scan (parallel with tests after lint)
-  security:
+  security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: [lint]
@@ -111,7 +111,7 @@ jobs:
   build:
     name: Build Verification
     runs-on: ubuntu-latest
-    needs: [test, security]
+    needs: [test, security-scan]
     
     steps:
       - name: Checkout code
@@ -144,7 +144,7 @@ jobs:
   pr-validation-complete:
     name: ✅ PR Validation Complete
     runs-on: ubuntu-latest
-    needs: [lint, test, security, build]
+    needs: [lint, test, security-scan, build]
     if: always()
     
     steps:
@@ -155,13 +155,13 @@ jobs:
           echo ""
           echo "1. Lint:     ${{ needs.lint.result }}"
           echo "2. Tests:    ${{ needs.test.result }}"
-          echo "3. Security: ${{ needs.security.result }}"
+          echo "3. Security: ${{ needs.security-scan.result }}"
           echo "4. Build:    ${{ needs.build.result }}"
           echo ""
           
           if [[ "${{ needs.lint.result }}" != "success" ]] || \
              [[ "${{ needs.test.result }}" != "success" ]] || \
-             [[ "${{ needs.security.result }}" != "success" ]] || \
+             [[ "${{ needs.security-scan.result }}" != "success" ]] || \
              [[ "${{ needs.build.result }}" != "success" ]]; then
             echo "❌ Some checks failed. Please fix before merging."
             exit 1
