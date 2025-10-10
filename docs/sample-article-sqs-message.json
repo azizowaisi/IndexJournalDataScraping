@@ -1,0 +1,147 @@
+{
+  "sampleIdentifyMessage": {
+    "description": "Sample SQS message sent to integration queue after processing Identify request",
+    "message": {
+      "journalKey": "journal-abc-123",
+      "oaiUrl": "https://example.com/oai/request",
+      "s3Url": "https://index-journal-files.s3.ap-south-1.amazonaws.com/oai-data/2024-10-09/journal-abc-123-identify.xml",
+      "s3Key": "oai-data/2024-10-09/journal-abc-123-identify.xml",
+      "s3Path": "oai-data/2024-10-09/journal-abc-123-identify.xml",
+      "filename": "journal-abc-123-identify.xml",
+      "fileSize": 2048,
+      "contentType": "application/xml",
+      "messageType": "Identify",
+      "source": "scraping-service",
+      "success": true,
+      "errorCode": null,
+      "errorMessage": null,
+      "timestamp": "2024-10-09T10:30:45.123Z",
+      "data": {
+        "repositoryName": "Example Journal Repository",
+        "baseURL": "https://example.com/oai",
+        "protocolVersion": "2.0",
+        "adminEmail": "admin@example.com",
+        "earliestDatestamp": "2020-01-01",
+        "deletedRecord": "persistent",
+        "granularity": "YYYY-MM-DD",
+        "compression": "gzip"
+      }
+    },
+    "messageAttributes": {
+      "messageType": {
+        "DataType": "String",
+        "StringValue": "file-processing-request"
+      },
+      "source": {
+        "DataType": "String",
+        "StringValue": "scraping-service"
+      },
+      "journalKey": {
+        "DataType": "String",
+        "StringValue": "journal-abc-123"
+      }
+    }
+  },
+  "sampleArticleMessage": {
+    "description": "Sample SQS message sent to integration queue for each individual article. One message is sent per article extracted from the XML.",
+    "message": {
+      "journalKey": "journal-abc-123",
+      "oaiUrl": "https://example.com/oai/request",
+      "s3Url": "https://index-journal-files.s3.ap-south-1.amazonaws.com/oai-data/2024-10-09/journal-abc-123-listrecords-page-1.xml",
+      "s3Key": "oai-data/2024-10-09/journal-abc-123-listrecords-page-1.xml",
+      "s3Path": "oai-data/2024-10-09/journal-abc-123-listrecords-page-1.xml",
+      "s3FileName": "journal-abc-123-listrecords-page-1.xml",
+      "messageType": "Article",
+      "source": "scraping-service",
+      "pageNumber": 1,
+      "articleNumber": 3,
+      "totalArticlesInPage": 50,
+      "totalRecordsProcessed": 53,
+      "success": true,
+      "errorCode": null,
+      "errorMessage": null,
+      "timestamp": "2024-10-09T10:31:15.456Z",
+      "article": {
+        "identifier": "oai:example.com:journal:article-12345",
+        "datestamp": "2024-10-05",
+        "setSpec": "article",
+        "status": "active",
+        "title": "Machine Learning Applications in Healthcare: A Comprehensive Review",
+        "creator": [
+          "Dr. John Smith",
+          "Dr. Jane Doe",
+          "Prof. Michael Johnson"
+        ],
+        "subject": [
+          "Machine Learning",
+          "Healthcare",
+          "Artificial Intelligence",
+          "Medical Diagnosis"
+        ],
+        "description": "This article presents a comprehensive review of machine learning applications in healthcare, focusing on diagnostic systems, patient care optimization, and medical imaging analysis. The study examines recent advances in deep learning algorithms and their practical implementation in clinical settings.",
+        "publisher": "International Journal of Medical Research",
+        "contributor": [
+          "Research Institute of AI"
+        ],
+        "date": "2024-10-05",
+        "type": "research-article",
+        "format": "application/pdf",
+        "source": "International Journal of Medical Research, Vol. 45, No. 3",
+        "language": "en",
+        "relation": "https://doi.org/10.1234/ijmr.2024.12345",
+        "coverage": "Global",
+        "rights": "Copyright 2024, International Journal of Medical Research. Open Access under CC BY 4.0",
+        "recordIndex": 3
+      }
+    },
+    "messageAttributes": {
+      "messageType": {
+        "DataType": "String",
+        "StringValue": "file-processing-request"
+      },
+      "source": {
+        "DataType": "String",
+        "StringValue": "scraping-service"
+      },
+      "journalKey": {
+        "DataType": "String",
+        "StringValue": "journal-abc-123"
+      }
+    }
+  },
+  "notes": [
+    "The XML file is still saved to S3 for backup/audit purposes (s3Url, s3Key, s3Path)",
+    "Each article from the ListRecords XML is extracted and sent as a separate SQS message",
+    "The 'article' field contains the parsed JSON data for the individual article",
+    "All Dublin Core metadata fields are extracted and converted to JSON format",
+    "Empty or null fields are removed from the article object to keep messages lean",
+    "The messageType for individual articles is 'Article' instead of 'ListRecords'",
+    "articleNumber and totalArticlesInPage help track processing progress",
+    "The original page XML is referenced via s3Url for traceability"
+  ],
+  "articleFields": {
+    "description": "Fields extracted from each article (Dublin Core metadata)",
+    "fields": {
+      "identifier": "OAI-PMH unique identifier for the record",
+      "datestamp": "Date when the record was created or last modified",
+      "setSpec": "Set specification (e.g., 'article', 'conference-paper')",
+      "status": "Record status ('active' or 'deleted')",
+      "title": "Article title",
+      "creator": "Array of authors/creators",
+      "subject": "Array of subjects/keywords",
+      "description": "Article abstract or description",
+      "publisher": "Publisher name",
+      "contributor": "Array of contributors",
+      "date": "Publication date",
+      "type": "Resource type (e.g., 'research-article', 'review')",
+      "format": "File format",
+      "source": "Source journal/conference information",
+      "language": "Language code (e.g., 'en', 'fr')",
+      "relation": "Related resources (e.g., DOI link)",
+      "coverage": "Coverage information",
+      "rights": "Rights and licensing information",
+      "recordIndex": "Index of this article within the page (1-based)"
+    }
+  }
+}
+

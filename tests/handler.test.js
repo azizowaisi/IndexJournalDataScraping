@@ -125,14 +125,15 @@ describe('Lambda Handler', () => {
         })
       );
 
-      // Verify ListRecords SQS message
+      // Verify Article SQS message (individual articles are now sent)
       expect(mockSqsProcessor.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           journalKey: 'test-journal-123',
           oaiUrl: 'https://example.com/oai',
-          messageType: 'ListRecords',
+          messageType: 'Article',
           pageNumber: 1,
-          recordsInPage: 1,
+          articleNumber: 1,
+          totalArticlesInPage: 1,
           totalRecordsProcessed: 1,
           success: true,
         })
@@ -149,11 +150,23 @@ describe('Lambda Handler', () => {
       });
 
       mockOaiProcessor.processListRecords.mockImplementation(async (url, journalKey, callback) => {
-        // Simulate one page of ListRecords
-        await callback('<OAI-PMH><ListRecords>test</ListRecords></OAI-PMH>', 1, 0, 0);
+        // Simulate one page of ListRecords with 1 record
+        const listRecordsXml = `<?xml version="1.0" encoding="UTF-8"?>
+          <OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+            <ListRecords>
+              <record>
+                <header>
+                  <identifier>oai:test:1</identifier>
+                  <datestamp>2024-01-01</datestamp>
+                </header>
+                <metadata></metadata>
+              </record>
+            </ListRecords>
+          </OAI-PMH>`;
+        await callback(listRecordsXml, 1, 1, 1);
         return {
           pageCount: 1,
-          totalRecordsProcessed: 0,
+          totalRecordsProcessed: 1,
           success: true,
           errorCode: null,
           errorMessage: null,
@@ -194,7 +207,7 @@ describe('Lambda Handler', () => {
       expect(result).toEqual({ statusCode: 200, body: 'SUCCESS' });
       expect(mockOaiProcessor.processIdentify).toHaveBeenCalledTimes(2);
       expect(mockOaiProcessor.processListRecords).toHaveBeenCalledTimes(2);
-      expect(mockSqsProcessor.sendMessage).toHaveBeenCalledTimes(4); // 2 records × 2 messages each (1 Identify + 1 ListRecords page)
+      expect(mockSqsProcessor.sendMessage).toHaveBeenCalledTimes(4); // 2 journals × 2 messages each (1 Identify + 1 Article per journal)
     });
 
     it('should handle empty records array', async () => {
