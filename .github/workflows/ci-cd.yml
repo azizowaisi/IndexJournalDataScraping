@@ -255,17 +255,31 @@ jobs:
           while [ $deploy_attempt -le $max_deploy_attempts ]; do
             echo "Deployment attempt $deploy_attempt/$max_deploy_attempts"
 
-            if sls deploy --stage prod --region $AWS_REGION; then
+            if sls deploy --stage prod --region $AWS_REGION --verbose; then
               echo "✅ Deployment successful!"
+              
+              # Show deployment info
+              echo ""
+              echo "📊 Deployment Information:"
+              sls info --stage prod --region $AWS_REGION
+              
               break
             else
-              echo "❌ Deployment failed on attempt $deploy_attempt"
+              DEPLOY_EXIT_CODE=$?
+              echo "❌ Deployment failed on attempt $deploy_attempt (exit code: $DEPLOY_EXIT_CODE)"
 
               if [ $deploy_attempt -lt $max_deploy_attempts ]; then
                 echo "⏳ Waiting 60 seconds before retry..."
                 sleep 60
               else
                 echo "❌ All deployment attempts failed"
+                echo "Checking CloudFormation stack for errors..."
+                aws cloudformation describe-stack-events \
+                  --stack-name index-journals-data-scraping-prod \
+                  --region $AWS_REGION \
+                  --max-items 10 \
+                  --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED`]' \
+                  --output table || true
                 exit 1
               fi
             fi
@@ -280,11 +294,24 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           echo "🔍 Verifying Lambda function..."
-          aws lambda get-function \
-            --function-name index-journals-data-scraping-prod-scraping \
+          FUNCTION_NAME="index-journals-data-scraping-prod"
+          
+          # Check if function exists
+          if aws lambda get-function \
+            --function-name $FUNCTION_NAME \
             --region $AWS_REGION \
             --query 'Configuration.{Name:FunctionName,Runtime:Runtime,State:State,LastModified:LastModified}' \
-            --output table
+            --output table; then
+            echo "✅ Lambda function verified successfully"
+          else
+            echo "❌ Lambda function verification failed"
+            echo "Listing all Lambda functions with 'index-journals' in name:"
+            aws lambda list-functions \
+              --region $AWS_REGION \
+              --query 'Functions[?contains(FunctionName, `index-journals`)].{Name:FunctionName,Runtime:Runtime,State:State}' \
+              --output table
+            exit 1
+          fi
 
       - name: Deployment Summary
         run: |
@@ -293,13 +320,20 @@ jobs:
           echo "===================="
           echo "Environment: Production"
           echo "Region: ${{ secrets.AWS_REGION }}"
-          echo "Function: index-journals-data-scraping-prod-scraping"
+          echo "Function: index-journals-data-scraping-prod"
           echo "S3 Bucket: ${{ secrets.S3_BUCKET_NAME }}"
           echo ""
           echo "✅ Deployment completed successfully!"
           echo ""
+          echo "📊 Useful Commands:"
           echo "View logs:"
-          echo "aws logs tail /aws/lambda/index-journals-data-scraping-prod-scraping --follow"
+          echo "  aws logs tail /aws/lambda/index-journals-data-scraping-prod --follow"
+          echo ""
+          echo "Get function info:"
+          echo "  serverless info --stage prod"
+          echo ""
+          echo "Invoke function:"
+          echo "  serverless invoke --function journalDataScraping --stage prod"
 
   # Summary Job
   deployment-complete:
