@@ -18,27 +18,16 @@ class SqsMessageProcessor {
    */
   async sendMessage(messageData) {
     console.log('Processing SQS message for journal:', messageData.journalKey);
-    console.log('S3 Path:', messageData.s3Path);
-    console.log('S3 URL:', messageData.s3Url);
+    console.log('Message Type:', messageData.messageType);
 
     try {
-      // Create message data with S3 path information
+      // Create message with all provided data
       const message = {
-        journalKey: messageData.journalKey,
-
-        // S3 information
-        s3Bucket: messageData.s3Bucket,
-        s3Key: messageData.s3Key,
-        s3Url: messageData.s3Url,
-        s3Path: messageData.s3Path,
-        filename: messageData.filename,
-        fileSize: messageData.fileSize,
-        contentType: messageData.contentType || 'application/xml',
-
-        // Message metadata
-        messageType: 'file-processing-request',
-        source: 'scraping-service',
-        timestamp: new Date().toISOString(),
+        // Spread all incoming messageData to preserve everything
+        ...messageData,
+        
+        // Ensure timestamp is set
+        timestamp: messageData.timestamp || new Date().toISOString(),
       };
 
       // Send message to integration queue

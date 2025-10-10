@@ -1,6 +1,7 @@
 const { OaiDataProcessor } = require('./processors/oaiDataProcessor');
 const { S3FileProcessor } = require('./processors/s3FileProcessor');
 const { SqsMessageProcessor } = require('./processors/sqsMessageProcessor');
+const { XmlArticleProcessor } = require('./processors/xmlArticleProcessor');
 
 // Helper function to create error message
 const createErrorMessage = (journalKey, oaiUrl, messageType, errorCode, errorMessage) => ({
@@ -17,7 +18,14 @@ const createErrorMessage = (journalKey, oaiUrl, messageType, errorCode, errorMes
 });
 
 // Helper function to process Identify phase
-const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url, journalKey) => {
+const processIdentifyPhase = async (
+  oaiProcessor,
+  s3Processor,
+  sqsProcessor,
+  articleProcessor,
+  url,
+  journalKey
+) => {
   console.log(`Phase 1: Processing Identify request for journal: ${journalKey}`);
 
   try {
@@ -31,7 +39,11 @@ const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url
         url
       );
 
-      console.log('Sending Identify message to integration queue');
+      // Parse Identify XML to JSON
+      console.log('Parsing Identify XML to JSON');
+      const identifyData = await articleProcessor.parseIdentifyXml(identifyResult.data, journalKey);
+
+      console.log('Sending Identify data as JSON to integration queue');
       await sqsProcessor.sendMessage({
         journalKey,
         oaiUrl: url,
@@ -47,6 +59,8 @@ const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url
         errorCode: null,
         errorMessage: null,
         timestamp: new Date().toISOString(),
+        // Add parsed JSON data
+        data: identifyData,
       });
 
       console.log(`Successfully processed Identify phase for journal: ${journalKey}`);
@@ -74,7 +88,7 @@ const processIdentifyPhase = async (oaiProcessor, s3Processor, sqsProcessor, url
 };
 
 // Helper function to create page processing callback
-const createPageCallback = (s3Processor, sqsProcessor, journalKey, url) => {
+const createPageCallback = (s3Processor, sqsProcessor, articleProcessor, journalKey, url) => {
   return async (pageXml, pageNumber, recordsInPage, recordsProcessed) => {
     console.log(`Processing ListRecords page ${pageNumber} with ${recordsInPage} records`);
 
@@ -86,29 +100,50 @@ const createPageCallback = (s3Processor, sqsProcessor, journalKey, url) => {
         url
       );
 
-      console.log(`Sending ListRecords page ${pageNumber} message to integration queue`);
-      await sqsProcessor.sendMessage({
-        journalKey,
-        oaiUrl: url,
-        s3Url: pageS3Result.s3Url,
-        s3Key: pageS3Result.s3Key,
-        s3Path: pageS3Result.s3Path,
-        filename: pageS3Result.filename,
-        fileSize: pageS3Result.fileSize,
-        contentType: pageS3Result.contentType,
-        messageType: 'ListRecords',
-        source: 'scraping-service',
-        pageNumber,
-        recordsInPage,
-        totalRecordsProcessed: recordsProcessed,
-        success: true,
-        errorCode: null,
-        errorMessage: null,
-        timestamp: new Date().toISOString(),
-      });
+      // Parse XML and extract individual articles
+      console.log(`Parsing ListRecords XML to extract ${recordsInPage} individual articles`);
+      const articles = await articleProcessor.parseListRecordsXml(pageXml, journalKey);
+
+      console.log(`Sending ${articles.length} individual articles to integration queue`);
+
+      // Send each article as a separate message to SQS
+      let successCount = 0;
+      let failureCount = 0;
+
+      for (let i = 0; i < articles.length; i++) {
+        try {
+          await sqsProcessor.sendMessage({
+            journalKey,
+            oaiUrl: url,
+            s3Url: pageS3Result.s3Url,
+            s3Key: pageS3Result.s3Key,
+            s3Path: pageS3Result.s3Path,
+            s3FileName: pageS3Result.filename,
+            messageType: 'Article',
+            source: 'scraping-service',
+            pageNumber,
+            articleNumber: i + 1,
+            totalArticlesInPage: articles.length,
+            totalRecordsProcessed: recordsProcessed - recordsInPage + i + 1,
+            success: true,
+            errorCode: null,
+            errorMessage: null,
+            timestamp: new Date().toISOString(),
+            // Article data in JSON format
+            article: articles[i],
+          });
+          successCount++;
+        } catch (articleError) {
+          console.error(
+            `Failed to send article ${i + 1} from page ${pageNumber}:`,
+            articleError
+          );
+          failureCount++;
+        }
+      }
 
       console.log(
-        `Successfully processed and sent ListRecords page ${pageNumber} for journal: ${journalKey}`
+        `Successfully sent ${successCount}/${articles.length} articles from page ${pageNumber}. Failures: ${failureCount}`
       );
 
       // Clear memory by forcing garbage collection
@@ -141,13 +176,20 @@ const processListRecordsPhase = async (
   oaiProcessor,
   s3Processor,
   sqsProcessor,
+  articleProcessor,
   url,
   journalKey
 ) => {
   console.log(`Phase 2: Processing ListRecords request for journal: ${journalKey}`);
 
   try {
-    const pageCallback = createPageCallback(s3Processor, sqsProcessor, journalKey, url);
+    const pageCallback = createPageCallback(
+      s3Processor,
+      sqsProcessor,
+      articleProcessor,
+      journalKey,
+      url
+    );
     const listRecordsResult = await oaiProcessor.processListRecords(url, journalKey, pageCallback);
 
     if (!listRecordsResult.success) {
@@ -220,10 +262,25 @@ exports.handler = async event => {
       const oaiProcessor = new OaiDataProcessor();
       const s3Processor = new S3FileProcessor();
       const sqsProcessor = new SqsMessageProcessor();
+      const articleProcessor = new XmlArticleProcessor();
 
       // Process both phases
-      await processIdentifyPhase(oaiProcessor, s3Processor, sqsProcessor, url, journalKey);
-      await processListRecordsPhase(oaiProcessor, s3Processor, sqsProcessor, url, journalKey);
+      await processIdentifyPhase(
+        oaiProcessor,
+        s3Processor,
+        sqsProcessor,
+        articleProcessor,
+        url,
+        journalKey
+      );
+      await processListRecordsPhase(
+        oaiProcessor,
+        s3Processor,
+        sqsProcessor,
+        articleProcessor,
+        url,
+        journalKey
+      );
 
       console.log('Successfully processed message:', record.messageId);
     } catch (error) {
